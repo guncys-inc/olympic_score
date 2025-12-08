@@ -69,9 +69,9 @@ input,select{padding:12px;border:1px solid #e5e7eb;border-radius:8px;font-size:1
 <body>
 <div id="app"></div>
 <script type="module">
-// Firebase SDK
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { getDatabase, ref, set, onValue, off } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+// Firebase v9 SDK
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
+import { getDatabase, ref, set, onValue, off } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCFD2IFYU34YK6Z_PRs2pTuZ-WZIj9Vy6M",
@@ -85,20 +85,93 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const database = getDatabase(app);
-window.fbDB = database;
-window.fbRef = ref;
-window.fbSet = set;
-window.fbOnValue = onValue;
-window.fbOff = off;
+
+// グローバルに公開（compat APIスタイル）
+window.fbDB = {
+  ref: (path) => ref(database, path),
+  _db: database,
+  _ref: ref,
+  _set: set,
+  _onValue: onValue,
+  _off: off
+};
+window.firebaseReady = true;
+
+console.log('✅ Firebase v9 initialized');
+console.log('window.fbDB:', window.fbDB);
+console.log('window.firebaseReady:', window.firebaseReady);
 </script>
 <script>
 let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,isJoinedRound:false,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:3,silver:2,bronze:1,iron:0,diamond:5,nearpin:1,dracon:1,eagle:3,birdie:1,sand:-1,flag:1,threeputt:-1},nikaiNearpin:false,nikaiDracon:false},showPresets:false,showSaveForm:false,showRounds:false,showApiSetup:false,showRoundIdInput:false,showAvatarPicker:false,avatarPickerIndex:null,alert:null,apiUrl:localStorage.getItem('sheets_api_url')||''};
 const AVATARS=['👨','👩','👦','👧','👴','👵','👶','🧒','🧑','👨‍💼','👩‍💼','👨‍⚕️','👩‍⚕️','👨‍🎓','👩‍🎓','👨‍🏫','👩‍🏫','👨‍⚖️','👩‍⚖️','👨‍🌾','👩‍🌾','🧔','🤵','👰','🎅','🤶','🦸','🦹','⛳','🏌️'];
 function newRound(){D.rid='round_'+Date.now();D.scores={};D.isJoinedRound=false;console.log('新規ラウンド作成:',D.rid);saveRound();startRealtimeSync();alert('✅ 新規ラウンド作成\n\nラウンドIDをコピーして他のプレイヤーと共有してください')}
-function joinRound(){const rid=document.getElementById('roundIdInput').value.trim();if(!rid){alert('❌ ラウンドIDを入力してください');return}if(window.fbDB){const roundRef=window.fbRef(window.fbDB,'rounds/'+rid);window.fbOnValue(roundRef,(snapshot)=>{const data=snapshot.val();if(data){console.log('Firebase読込:',data);D.rid=rid;D.isJoinedRound=true;D.cfg=data.cfg||D.cfg;D.scores=data.scores||{};D.nph=data.nph||{};D.dch=data.dch||{};const list=JSON.parse(localStorage.getItem('rounds_list')||'[]');const exists=list.find(x=>x.id===rid);if(!exists){list.unshift({id:rid,courseName:D.cfg.courseName||'未設定',date:D.cfg.date,updatedAt:data.updatedAt||Date.now(),isJoined:true});localStorage.setItem('rounds_list',JSON.stringify(list))}D.showRoundIdInput=false;startRealtimeSync();alert('✅ ラウンドに参加しました\n\nスコアがリアルタイムで同期されます');render()}else{alert('❌ ラウンドが見つかりません: '+rid)}},{onlyOnce:true})}else{alert('❌ Firebase接続エラー')}}
+function joinRound(){
+  const rid=document.getElementById('roundIdInput').value.trim();
+  if(!rid){alert('❌ ラウンドIDを入力してください');return}
+  
+  // Firebase初期化を待つ
+  if(!window.firebaseReady || !window.fbDB){
+    console.error('Firebase not ready. firebaseReady:', window.firebaseReady, 'fbDB:', window.fbDB);
+    alert('❌ Firebase初期化中です\n\n数秒待ってから再度お試しください');
+    return;
+  }
+  
+  window.fbDB.ref('rounds/'+rid).once('value').then((snapshot)=>{
+    const data=snapshot.val();
+    if(data){
+      console.log('Firebase読込:',data);
+      D.rid=rid;
+      D.isJoinedRound=true;
+      D.cfg=data.cfg||D.cfg;
+      D.scores=data.scores||{};
+      D.nph=data.nph||{};
+      D.dch=data.dch||{};
+      const list=JSON.parse(localStorage.getItem('rounds_list')||'[]');
+      const exists=list.find(x=>x.id===rid);
+      if(!exists){
+        list.unshift({id:rid,courseName:D.cfg.courseName||'未設定',date:D.cfg.date,updatedAt:data.updatedAt||Date.now(),isJoined:true});
+        localStorage.setItem('rounds_list',JSON.stringify(list));
+      }
+      D.showRoundIdInput=false;
+      startRealtimeSync();
+      alert('✅ ラウンドに参加しました\n\nスコアがリアルタイムで同期されます');
+      render();
+    }else{
+      alert('❌ ラウンドが見つかりません: '+rid);
+    }
+  }).catch(err=>{
+    console.error('Firebase読込エラー:',err);
+    alert('❌ エラー: '+err.message);
+  });
+}
 let realtimeListener=null;
-function startRealtimeSync(){if(realtimeListener){window.fbOff(realtimeListener)}if(!D.rid||!window.fbDB)return;const roundRef=window.fbRef(window.fbDB,'rounds/'+D.rid);realtimeListener=roundRef;window.fbOnValue(roundRef,(snapshot)=>{const data=snapshot.val();if(data){console.log('リアルタイム更新:',data);const oldScores=JSON.stringify(D.scores);D.cfg=data.cfg||D.cfg;D.scores=data.scores||{};D.nph=data.nph||{};D.dch=data.dch||{};if(JSON.stringify(D.scores)!==oldScores){console.log('スコア変更検知');render()}}})}
-function stopRealtimeSync(){if(realtimeListener&&window.fbOff){window.fbOff(realtimeListener);realtimeListener=null}}
+function startRealtimeSync(){
+  if(realtimeListener){
+    // v9では直接off()は使えないので、unsubscribe関数を呼ぶ
+    if(typeof realtimeListener === 'function') realtimeListener();
+  }
+  if(!D.rid || !window.firebaseReady || !window.fbDB){
+    console.log('リアルタイム同期スキップ - Firebase未初期化またはridなし');
+    return;
+  }
+  const dbRef = window.fbDB.ref('rounds/'+D.rid);
+  realtimeListener = window.fbDB._onValue(dbRef, (snapshot)=>{
+    const data=snapshot.val();
+    if(data){
+      console.log('リアルタイム更新:',data);
+      const oldScores=JSON.stringify(D.scores);
+      D.cfg=data.cfg||D.cfg;
+      D.scores=data.scores||{};
+      D.nph=data.nph||{};
+      D.dch=data.dch||{};
+      if(JSON.stringify(D.scores)!==oldScores){
+        console.log('スコア変更検知');
+        render();
+      }
+    }
+  });
+}
+function stopRealtimeSync(){if(realtimeListener && typeof realtimeListener === 'function'){realtimeListener();realtimeListener=null}}
 async function saveRound(){
   if(!D.rid){console.log('エラー: ridがnull');return}
   const r={
@@ -115,14 +188,16 @@ async function saveRound(){
   console.log('ラウンド保存:',r);
   
   // Firebase Realtime Database に保存
-  if(window.fbDB){
+  if(window.firebaseReady && window.fbDB){
     try{
-      const roundRef = window.fbRef(window.fbDB, 'rounds/' + D.rid);
-      await window.fbSet(roundRef, r);
+      const dbRef = window.fbDB.ref('rounds/' + D.rid);
+      await window.fbDB._set(dbRef, r);
       console.log('Firebase保存完了');
     }catch(err){
       console.log('Firebase保存エラー:',err);
     }
+  } else {
+    console.log('Firebase未初期化 - LocalStorageのみ保存');
   }
   
   // Google Sheets バックアップ
@@ -181,9 +256,17 @@ function rRounds(){const list=JSON.parse(localStorage.getItem('rounds_list')||'[
 function rApiSetup(){return`<div class="modal" onclick="if(event.target===this){D.showApiSetup=false;render()}"><div class="modal-content" onclick="event.stopPropagation()"><h2>☁️ Google Sheets API 設定</h2><div style="margin:20px 0"><p style="font-size:13px;color:#6b7280;margin-bottom:12px">Google Apps ScriptのウェブアプリURLを入力してください</p><input id="apiUrlInput" class="input-full" placeholder="https://script.google.com/macros/s/.../exec" value="${D.apiUrl}" style="font-size:14px;font-family:monospace"></div><div style="background:#fef3c7;padding:12px;border-radius:8px;margin-bottom:16px"><p style="font-size:12px;color:#92400e">📖 <a href="sheets-setup.md" target="_blank" style="color:#92400e;text-decoration:underline">セットアップ手順を見る</a></p></div><div style="display:flex;gap:12px"><button class="btn-secondary" style="flex:1" onclick="D.showApiSetup=false;render()">キャンセル</button><button class="btn-primary" style="flex:1" onclick="setApiUrl()">保存</button></div></div></div>`}
 function rRoundIdInput(){return`<div class="modal" onclick="if(event.target===this){D.showRoundIdInput=false;render()}"><div class="modal-content" onclick="event.stopPropagation()"><h2>🔗 ラウンドに参加</h2><div style="margin:20px 0"><p style="font-size:13px;color:#6b7280;margin-bottom:12px">他のプレイヤーから共有されたラウンドIDを入力</p><input id="roundIdInput" class="input-full" placeholder="round_1234567890123" style="font-size:14px;font-family:monospace"></div><div style="background:#e0f2fe;padding:12px;border-radius:8px;margin-bottom:16px"><p style="font-size:12px;color:#0369a1">💡 同じラウンドIDを使用すると、全員が同じスコアデータを共有できます</p></div><div style="display:flex;gap:12px"><button class="btn-secondary" style="flex:1" onclick="D.showRoundIdInput=false;render()">キャンセル</button><button class="btn-primary" style="flex:1" onclick="joinRound()">参加</button></div></div></div>`}
 function render(){const v={input:rInput,list:rList,settings:rSet};let h=v[D.view]();if(D.showPresets)h+=rPresets();if(D.showSaveForm)h+=rSaveForm();if(D.showRounds)h+=rRounds();if(D.showApiSetup)h+=rApiSetup();if(D.showRoundIdInput)h+=rRoundIdInput();if(D.showAvatarPicker)h+=rAvatarPicker();if(D.alert)h+=`<div class="alert">${D.alert}</div>`;h+=`<div class="nav"><button class="nav-btn ${D.view==='input'?'active':''}" onclick="D.view='input';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg><span>入力</span></button><button class="nav-btn ${D.view==='list'?'active':''}" onclick="D.view='list';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg><span>一覧</span></button><button class="nav-btn ${D.view==='settings'?'active':''}" onclick="D.view='settings';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg><span>設定</span></button></div>`;document.getElementById('app').innerHTML=h}
-D.rid='r1';D.view='settings';newRound();render();
-// Service Worker登録
-if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').then(()=>console.log('SW registered')).catch(e=>console.log('SW error:',e))}
+function init(){
+  D.rid='r1';D.view='settings';newRound();render();
+  // Service Worker登録
+  if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').then(()=>console.log('SW registered')).catch(e=>console.log('SW error:',e))}
+}
+// ページ読み込み後に初期化
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',init);
+}else{
+  init();
+}
 </script>
 </body>
 </html>
