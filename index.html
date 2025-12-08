@@ -3,7 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ゴルフオリンピック</title>
+<title>ゴルフオリンピック スコア</title>
+<meta name="description" content="ゴルフオリンピック形式のスコア管理アプリ">
+<meta name="theme-color" content="#16a34a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Golf Olympic">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:system-ui,-apple-system,sans-serif;background:linear-gradient(to bottom,#f0fdf4,#dbeafe);min-height:100vh;padding-bottom:120px}
@@ -100,6 +107,8 @@ function rApiSetup(){return`<div class="modal" onclick="if(event.target===this){
 function rRoundIdInput(){return`<div class="modal" onclick="if(event.target===this){D.showRoundIdInput=false;render()}"><div class="modal-content" onclick="event.stopPropagation()"><h2>🔗 ラウンドに参加</h2><div style="margin:20px 0"><p style="font-size:13px;color:#6b7280;margin-bottom:12px">他のプレイヤーから共有されたラウンドIDを入力</p><input id="roundIdInput" class="input-full" placeholder="round_1234567890123" style="font-size:14px;font-family:monospace"></div><div style="background:#e0f2fe;padding:12px;border-radius:8px;margin-bottom:16px"><p style="font-size:12px;color:#0369a1">💡 同じラウンドIDを使用すると、全員が同じスコアデータを共有できます</p></div><div style="display:flex;gap:12px"><button class="btn-secondary" style="flex:1" onclick="D.showRoundIdInput=false;render()">キャンセル</button><button class="btn-primary" style="flex:1" onclick="joinRound()">参加</button></div></div></div>`}
 function render(){const v={input:rInput,list:rList,settings:rSet};let h=v[D.view]();if(D.showPresets)h+=rPresets();if(D.showSaveForm)h+=rSaveForm();if(D.showRounds)h+=rRounds();if(D.showApiSetup)h+=rApiSetup();if(D.showRoundIdInput)h+=rRoundIdInput();if(D.showAvatarPicker)h+=rAvatarPicker();if(D.alert)h+=`<div class="alert">${D.alert}</div>`;h+=`<div class="nav"><button class="nav-btn ${D.view==='input'?'active':''}" onclick="D.view='input';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg><span>入力</span></button><button class="nav-btn ${D.view==='list'?'active':''}" onclick="D.view='list';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg><span>一覧</span></button><button class="nav-btn ${D.view==='settings'?'active':''}" onclick="D.view='settings';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg><span>設定</span></button></div>`;document.getElementById('app').innerHTML=h}
 D.rid='r1';D.view='settings';newRound();render();
+// Service Worker登録
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').then(()=>console.log('SW registered')).catch(e=>console.log('SW error:',e))}
 </script>
 </body>
 </html>
