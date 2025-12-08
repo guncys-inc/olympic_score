@@ -68,13 +68,87 @@ input,select{padding:12px;border:1px solid #e5e7eb;border-radius:8px;font-size:1
 </head>
 <body>
 <div id="app"></div>
+<script type="module">
+// Firebase SDK
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+import { getDatabase, ref, set, onValue, off } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCFD2IFYU34YK6Z_PRs2pTuZ-WZIj9Vy6M",
+  authDomain: "golf-olympic.firebaseapp.com",
+  databaseURL: "https://golf-olympic-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "golf-olympic",
+  storageBucket: "golf-olympic.firebasestorage.app",
+  messagingSenderId: "631997493044",
+  appId: "1:631997493044:web:0a3f55657ac942d9fdff61"
+};
+
+const app = initializeApp(firebaseConfig);
+const database = getDatabase(app);
+window.fbDB = database;
+window.fbRef = ref;
+window.fbSet = set;
+window.fbOnValue = onValue;
+window.fbOff = off;
+</script>
 <script>
 let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:3,silver:2,bronze:1,iron:0,diamond:5,nearpin:1,dracon:1,eagle:3,birdie:1,sand:-1,flag:1,threeputt:-1},nikaiNearpin:false,nikaiDracon:false},showPresets:false,showSaveForm:false,showRounds:false,showApiSetup:false,showRoundIdInput:false,showAvatarPicker:false,avatarPickerIndex:null,alert:null,apiUrl:localStorage.getItem('sheets_api_url')||''};
 const AVATARS=['👨','👩','👦','👧','👴','👵','👶','🧒','🧑','👨‍💼','👩‍💼','👨‍⚕️','👩‍⚕️','👨‍🎓','👩‍🎓','👨‍🏫','👩‍🏫','👨‍⚖️','👩‍⚖️','👨‍🌾','👩‍🌾','🧔','🤵','👰','🎅','🤶','🦸','🦹','⛳','🏌️'];
-function newRound(){D.rid='round_'+Date.now();D.scores={};console.log('新規ラウンド作成:',D.rid);saveRound();alert('✅ 新規ラウンド作成\n\nラウンドIDをコピーして他のプレイヤーと共有してください')}
-function joinRound(){const rid=document.getElementById('roundIdInput').value.trim();if(!rid){alert('❌ ラウンドIDを入力してください');return}D.rid=rid;D.scores={};D.showRoundIdInput=false;localStorage.setItem(rid,JSON.stringify({id:rid,courseName:D.cfg.courseName,date:D.cfg.date,players:[],scores:{},updatedAt:new Date().toISOString()}));const list=JSON.parse(localStorage.getItem('rounds_list')||'[]');list.unshift({id:rid,courseName:D.cfg.courseName||'共有ラウンド',date:D.cfg.date,updatedAt:new Date().toISOString()});localStorage.setItem('rounds_list',JSON.stringify(list));alert('✅ ラウンドに参加しました\n\nスコアを入力すると自動的に共有されます');render()}
-async function saveRound(){if(!D.rid){console.log('エラー: ridがnull');return}const r={id:D.rid,courseName:D.cfg.courseName,date:D.cfg.date,players:D.cfg.names.slice(0,D.cfg.cnt),scores:JSON.parse(JSON.stringify(D.scores)),updatedAt:new Date().toISOString()};console.log('ラウンド保存:',r);if(D.apiUrl){try{const formData=new URLSearchParams();formData.append('action','saveRound');formData.append('roundId',D.rid);formData.append('data',JSON.stringify(r));const res=await fetch(D.apiUrl,{method:'POST',body:formData,mode:'no-cors'});console.log('Sheets保存完了')}catch(err){console.log('Sheets保存エラー:',err)}}localStorage.setItem(D.rid,JSON.stringify(r));const list=JSON.parse(localStorage.getItem('rounds_list')||'[]');const idx=list.findIndex(x=>x.id===D.rid);const item={id:D.rid,courseName:D.cfg.courseName||'未設定',date:D.cfg.date,updatedAt:r.updatedAt};if(idx>-1)list[idx]=item;else list.unshift(item);localStorage.setItem('rounds_list',JSON.stringify(list));console.log('ラウンドリスト:',list)}
-async function loadRound(id){console.log('ラウンド読込開始:',id);if(!id){console.log('エラー: idが空');return}let r=JSON.parse(localStorage.getItem(id));console.log('localStorageから読込:',r);if(!r){console.log('エラー: データなし');return}D.rid=id;D.scores=r.scores||{};console.log('読込完了 rid:',D.rid,'scores:',D.scores);render();alert('✅ ラウンド読込')}
+function newRound(){D.rid='round_'+Date.now();D.scores={};console.log('新規ラウンド作成:',D.rid);saveRound();startRealtimeSync();alert('✅ 新規ラウンド作成\n\nラウンドIDをコピーして他のプレイヤーと共有してください')}
+function joinRound(){const rid=document.getElementById('roundIdInput').value.trim();if(!rid){alert('❌ ラウンドIDを入力してください');return}if(window.fbDB){const roundRef=window.fbRef(window.fbDB,'rounds/'+rid);window.fbOnValue(roundRef,(snapshot)=>{const data=snapshot.val();if(data){console.log('Firebase読込:',data);D.rid=rid;D.cfg=data.cfg||D.cfg;D.scores=data.scores||{};D.nph=data.nph||{};D.dch=data.dch||{};const list=JSON.parse(localStorage.getItem('rounds_list')||'[]');const exists=list.find(x=>x.id===rid);if(!exists){list.unshift({id:rid,courseName:D.cfg.courseName||'未設定',date:D.cfg.date,updatedAt:data.updatedAt||Date.now()});localStorage.setItem('rounds_list',JSON.stringify(list))}D.showRoundIdInput=false;startRealtimeSync();alert('✅ ラウンドに参加しました\n\nスコアがリアルタイムで同期されます');render()}else{alert('❌ ラウンドが見つかりません: '+rid)}},{onlyOnce:true})}else{alert('❌ Firebase接続エラー')}}
+let realtimeListener=null;
+function startRealtimeSync(){if(realtimeListener){window.fbOff(realtimeListener)}if(!D.rid||!window.fbDB)return;const roundRef=window.fbRef(window.fbDB,'rounds/'+D.rid);realtimeListener=roundRef;window.fbOnValue(roundRef,(snapshot)=>{const data=snapshot.val();if(data){console.log('リアルタイム更新:',data);const oldScores=JSON.stringify(D.scores);D.cfg=data.cfg||D.cfg;D.scores=data.scores||{};D.nph=data.nph||{};D.dch=data.dch||{};if(JSON.stringify(D.scores)!==oldScores){console.log('スコア変更検知');render()}}})}
+function stopRealtimeSync(){if(realtimeListener&&window.fbOff){window.fbOff(realtimeListener);realtimeListener=null}}
+async function saveRound(){
+  if(!D.rid){console.log('エラー: ridがnull');return}
+  const r={
+    id:D.rid,
+    courseName:D.cfg.courseName,
+    date:D.cfg.date,
+    players:D.cfg.names.slice(0,D.cfg.cnt),
+    cfg:D.cfg,
+    scores:JSON.parse(JSON.stringify(D.scores)),
+    nph:D.nph,
+    dch:D.dch,
+    updatedAt:Date.now()
+  };
+  console.log('ラウンド保存:',r);
+  
+  // Firebase Realtime Database に保存
+  if(window.fbDB){
+    try{
+      const roundRef = window.fbRef(window.fbDB, 'rounds/' + D.rid);
+      await window.fbSet(roundRef, r);
+      console.log('Firebase保存完了');
+    }catch(err){
+      console.log('Firebase保存エラー:',err);
+    }
+  }
+  
+  // Google Sheets バックアップ
+  if(D.apiUrl){
+    try{
+      const formData=new URLSearchParams();
+      formData.append('action','saveRound');
+      formData.append('roundId',D.rid);
+      formData.append('data',JSON.stringify(r));
+      await fetch(D.apiUrl,{method:'POST',body:formData,mode:'no-cors'});
+      console.log('Sheets保存完了');
+    }catch(err){
+      console.log('Sheets保存エラー:',err);
+    }
+  }
+  
+  // LocalStorage バックアップ
+  localStorage.setItem(D.rid,JSON.stringify(r));
+  const list=JSON.parse(localStorage.getItem('rounds_list')||'[]');
+  const idx=list.findIndex(x=>x.id===D.rid);
+  const item={id:D.rid,courseName:D.cfg.courseName||'未設定',date:D.cfg.date,updatedAt:r.updatedAt};
+  if(idx>-1)list[idx]=item;else list.unshift(item);
+  localStorage.setItem('rounds_list',JSON.stringify(list));
+  console.log('ラウンドリスト:',list);
+}
+async function loadRound(id){console.log('ラウンド読込開始:',id);if(!id){console.log('エラー: idが空');return}let r=JSON.parse(localStorage.getItem(id));console.log('localStorageから読込:',r);if(!r){console.log('エラー: データなし');return}D.rid=id;D.scores=r.scores||{};if(r.cfg){D.cfg=r.cfg}if(r.nph){D.nph=r.nph}if(r.dch){D.dch=r.dch}console.log('読込完了 rid:',D.rid,'scores:',D.scores);startRealtimeSync();render();alert('✅ ラウンド読込')}
 async function deleteRound(id){console.log('ラウンド削除:',id);if(D.apiUrl){try{const formData=new URLSearchParams();formData.append('action','deleteRound');formData.append('roundId',id);await fetch(D.apiUrl,{method:'POST',body:formData,mode:'no-cors'})}catch(err){console.log('Sheets削除エラー:',err)}}localStorage.removeItem(id);const list=JSON.parse(localStorage.getItem('rounds_list')||'[]');localStorage.setItem('rounds_list',JSON.stringify(list.filter(x=>x.id!==id)));if(D.rid===id){newRound()}else{render()}alert('✅ ラウンド削除')}
 async function syncFromSheets(){alert('❌ Sheets連携はデータ保存のみ対応しています。読込機能は今後追加予定です。')}
 function setApiUrl(){const url=document.getElementById('apiUrlInput').value.trim();if(url){D.apiUrl=url;localStorage.setItem('sheets_api_url',url);D.showApiSetup=false;alert('✅ API URL設定完了\n\nスコア入力時に自動的にGoogle Sheetsに保存されます');render()}else{alert('❌ URLを入力してください')}}
