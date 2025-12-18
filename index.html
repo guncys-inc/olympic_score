@@ -162,12 +162,6 @@ function newRound(){
   alert('✅ 新規ラウンド作成\n\nラウンドIDをコピーして他のプレイヤーと共有してください');
 }
 async function joinRound(){
-  if(!D.isAuthorized){
-    alert('⚠️ ラウンド参加権限がありません\n\n閲覧専用モードです。ラウンドに参加するには管理者に承認をリクエストしてください。');
-    D.showRoundIdInput=false;
-    render();
-    return;
-  }
   const rid=document.getElementById('roundIdInput').value.trim();
   if(!rid){alert('❌ ラウンドIDを入力してください');return}
   
