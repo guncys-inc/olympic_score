@@ -105,7 +105,7 @@ function initFirebase() {
   window.fbDB = {
     ref: (path) => window.database.ref(path),
     _db: window.database,
-    _onValue: (ref, callback) => ref.on('value', callback),
+    _onValue: (ref, callback, errorCallback) => ref.on('value', callback, errorCallback),
     _off: (ref) => ref.off()
   };
   window.firebaseReady = true;
@@ -198,13 +198,23 @@ async function joinRound(){
     // onValueを使って一度だけ読み込む
     let unsubscribe = null;
     const data = await new Promise((resolve, reject) => {
-      unsubscribe = window.fbDB._onValue(dbRef, (snapshot) => {
-        log('Snapshot取得: ' + (snapshot.val() ? 'データあり' : 'データなし'));
-        resolve(snapshot.val());
-      }, (error) => {
-        log('❌ Firebase読込エラー: ' + error.message);
-        reject(error);
-      });
+      try {
+        unsubscribe = window.fbDB._onValue(dbRef, (snapshot) => {
+          try {
+            log('Snapshot取得: ' + (snapshot && snapshot.val() ? 'データあり' : 'データなし'));
+            resolve(snapshot ? snapshot.val() : null);
+          } catch (e) {
+            log('❌ Snapshot処理エラー: ' + e.message);
+            reject(e);
+          }
+        }, (error) => {
+          log('❌ Firebase読込エラー: ' + error.message);
+          reject(error);
+        });
+      } catch (e) {
+        log('❌ リスナー設定エラー: ' + e.message);
+        reject(e);
+      }
     });
     
     // リスナーを即座に解除
