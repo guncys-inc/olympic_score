@@ -608,18 +608,21 @@ async function checkUserAuthorization(user){
     if(snapshot.exists()){
       const userData = snapshot.val();
       D.isAuthorized = userData.authorized === true;
+      D.adminMode = userData.isAdmin === true; // 管理者フラグをチェック
       if(D.isAuthorized){
-        console.log('✅ 承認済みユーザー:', user.email);
+        console.log('✅ 承認済みユーザー:', user.email, D.adminMode ? '(管理者)' : '');
       }else{
         console.log('⚠️  未承認ユーザー（閲覧専用）:', user.email);
       }
     }else{
       D.isAuthorized = false;
+      D.adminMode = false;
       console.log('⚠️  未承認ユーザー（閲覧専用）:', user.email);
     }
   }catch(error){
     // 承認リストに存在しない場合（閲覧専用モード）
     D.isAuthorized = false;
+    D.adminMode = false;
     console.log('ℹ️  閲覧専用モード:', user.email);
   }
   render();
