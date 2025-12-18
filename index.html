@@ -74,7 +74,7 @@ input,select{padding:12px;border:1px solid #e5e7eb;border-radius:8px;font-size:1
 // Firebase v9 SDK
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
 import { getDatabase, ref, set, onValue, off, get } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js';
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
+// import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCFD2IFYU34YK6Z_PRs2pTuZ-WZIj9Vy6M",
@@ -88,8 +88,9 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const database = getDatabase(app);
-const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
+// const auth = getAuth(app);
+// const googleProvider = new GoogleAuthProvider();
+
 
 // グローバルに公開（compat APIスタイル）
 window.fbDB = {
@@ -439,13 +440,15 @@ function rApiSetup(){return`<div class="modal" onclick="if(event.target===this){
 function rFirebaseManager(){return`<div class="modal" onclick="if(event.target===this){D.showFirebaseManager=false;render()}"><div class="modal-content" onclick="event.stopPropagation()"><h2>☁️ Firebase管理</h2><div style="background:#dcfce7;padding:8px;border-radius:8px;margin-bottom:12px;text-align:center"><p style="font-size:11px;color:#166534;font-weight:bold">🔓 管理者モード</p></div><div style="max-height:55vh;overflow-y:auto;margin:20px 0">${D.firebaseRounds.length===0?'<p style="color:#6b7280;padding:40px 20px;text-align:center">データなし</p>':''}${D.firebaseRounds.map(r=>`<div class="preset-item"><div class="preset-name">${r.courseName}<div style="font-size:11px;color:#6b7280;margin-top:4px">${r.date} | ${r.playerCount}人 | ${new Date(r.updatedAt).toLocaleString('ja-JP')}</div><div style="font-size:10px;font-family:monospace;color:#9ca3af;margin-top:4px">${r.id}</div></div><div class="preset-btns"><button class="btn-del" onclick="event.stopPropagation();deleteFirebaseRound('${r.id}')">🗑 削除</button></div></div>`).join('')}</div><div style="background:#fef3c7;padding:12px;border-radius:8px;margin-bottom:16px"><p style="font-size:12px;color:#92400e">⚠️ ここから削除すると、Firebaseから完全に削除されます。参加者全員がアクセスできなくなります。</p></div><div style="display:flex;gap:12px"><button class="btn-secondary" style="flex:1" onclick="loadFirebaseRounds()">🔄 更新</button><button class="btn-secondary" style="flex:1" onclick="D.showFirebaseManager=false;render()">✖️ 閉じる</button></div></div></div>`}
 function rRoundIdInput(){return`<div class="modal" onclick="if(event.target===this){D.showRoundIdInput=false;render()}"><div class="modal-content" onclick="event.stopPropagation()"><h2>🔗 ラウンドに参加</h2><div style="margin:20px 0"><p style="font-size:13px;color:#6b7280;margin-bottom:12px">他のプレイヤーから共有されたラウンドIDを入力</p><input id="roundIdInput" class="input-full" placeholder="round_1234567890123" style="font-size:14px;font-family:monospace"></div><div style="background:#e0f2fe;padding:12px;border-radius:8px;margin-bottom:16px"><p style="font-size:12px;color:#0369a1">💡 同じラウンドIDを使用すると、全員が同じスコアデータを共有できます</p></div>${D.debugLog.length>0?`<div style="background:#f3f4f6;padding:8px;border-radius:8px;margin-bottom:16px;max-height:150px;overflow-y:auto"><p style="font-size:10px;font-weight:bold;margin-bottom:4px">📋 デバッグログ</p>${D.debugLog.map(l=>`<p style="font-size:10px;font-family:monospace;margin:2px 0">${l}</p>`).join('')}</div>`:''}<div style="display:flex;gap:12px"><button class="btn-secondary" style="flex:1" onclick="D.showRoundIdInput=false;render()">キャンセル</button><button class="btn-primary" style="flex:1" onclick="joinRound()">参加</button></div></div></div>`}
 function render(){
-  // 認証チェック
-  if(!D.isAuthenticated || !D.isAuthorized){
-    document.getElementById('app').innerHTML = rLogin();
-    return;
-  }
+  // 認証チェック（一時的に無効化）
+  // if(!D.isAuthenticated || !D.isAuthorized){
+  //   document.getElementById('app').innerHTML = rLogin();
+  //   return;
+  // }
   const v={input:rInput,list:rList,settings:rSet};let h=v[D.view]();if(D.showPresets)h+=rPresets();if(D.showSaveForm)h+=rSaveForm();if(D.showRounds)h+=rRounds();if(D.showApiSetup)h+=rApiSetup();if(D.showRoundIdInput)h+=rRoundIdInput();if(D.showAvatarPicker)h+=rAvatarPicker();if(D.showFirebaseManager)h+=rFirebaseManager();if(D.showHowToUse)h+=rHowToUse();if(D.alert)h+=`<div class="alert">${D.alert}</div>`;h+=`<div class="nav"><button class="nav-btn ${D.view==='input'?'active':''}" onclick="D.view='input';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg><span>入力</span></button><button class="nav-btn ${D.view==='list'?'active':''}" onclick="D.view='list';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg><span>一覧</span></button><button class="nav-btn ${D.view==='settings'?'active':''}" onclick="D.view='settings';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg><span>設定</span></button></div>`;document.getElementById('app').innerHTML=h}
 // 認証関数
+// 認証関数（一時的に無効化）
+/*
 async function handleGoogleLogin(){
   try{
     const result = await signInWithPopup(auth, googleProvider);
@@ -485,7 +488,10 @@ async function checkUserAuthorization(user){
   }
   render();
 }
-// 認証状態の監視
+*/
+// 認証状態の監視（一時的に無効化）
+// 認証状態の監視（一時的に無効化）
+/*
 onAuthStateChanged(auth, (user) => {
   if(user){
     D.user = user;
@@ -500,6 +506,7 @@ onAuthStateChanged(auth, (user) => {
     render();
   }
 });
+*/
 function init(){
   // URLパラメータで管理者モードをチェック
   const urlParams = new URLSearchParams(window.location.search);
