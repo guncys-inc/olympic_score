@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <!-- 背景 -->
+  <rect width="192" height="192" fill="#16a34a" rx="32"/>
+  
+  <!-- ゴルフフラッグ -->
+  <g transform="translate(96, 96)">
+    <!-- ポール -->
+    <rect x="-2" y="-50" width="4" height="100" fill="#ffffff"/>
+    
+    <!-- フラッグ -->
+    <path d="M 2,-40 L 45,-30 L 45,-10 L 2,-20 Z" fill="#fbbf24"/>
+    
+    <!-- ボール -->
+    <circle cx="0" cy="55" r="12" fill="#ffffff"/>
+    <circle cx="-3" cy="52" r="1.5" fill="#d1d5db"/>
+    <circle cx="3" cy="52" r="1.5" fill="#d1d5db"/>
+    <circle cx="0" cy="58" r="1.5" fill="#d1d5db"/>
+    <circle cx="-3" cy="55" r="1.5" fill="#d1d5db"/>
+    <circle cx="3" cy="55" r="1.5" fill="#d1d5db"/>
+    
+    <!-- メダル -->
+    <g transform="translate(-30, 15)">
+      <circle cx="0" cy="0" r="18" fill="#fbbf24" stroke="#f59e0b" stroke-width="2"/>
+      <text x="0" y="7" text-anchor="middle" font-size="20" font-weight="bold" fill="#78350f">1</text>
+    </g>
+  </g>
+</svg>
