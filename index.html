@@ -70,45 +70,69 @@ input,select{padding:12px;border:1px solid #e5e7eb;border-radius:8px;font-size:1
 </head>
 <body>
 <div id="app"></div>
-<script type="module">
-// Firebase v9 SDK
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
-import { getDatabase, ref, set, onValue, off, get } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js';
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
-
-const firebaseConfig = {
-  apiKey: "AIzaSyCFD2IFYU34YK6Z_PRs2pTuZ-WZIj9Vy6M",
-  authDomain: "golf-olympic.firebaseapp.com",
-  databaseURL: "https://golf-olympic-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "golf-olympic",
-  storageBucket: "golf-olympic.firebasestorage.app",
-  messagingSenderId: "631997493044",
-  appId: "1:631997493044:web:0a3f55657ac942d9fdff61"
-};
-
-const app = initializeApp(firebaseConfig);
-const database = getDatabase(app);
-const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
-
-
-
-// グローバルに公開（compat APIスタイル）
-window.fbDB = {
-  ref: (path) => ref(database, path),
-  _db: database,
-  _ref: ref,
-  _set: set,
-  _onValue: onValue,
-  _off: off
-};
-window.firebaseReady = true;
-
-console.log('✅ Firebase v9 initialized');
-console.log('window.fbDB:', window.fbDB);
-console.log('window.firebaseReady:', window.firebaseReady);
-</script>
+<!-- Firebase v8 SDK (compat) -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script>
+// Firebase初期化（SDKの読み込みを待つ）
+function initFirebase() {
+  if (typeof firebase === 'undefined') {
+    console.log('Waiting for Firebase SDK...');
+    setTimeout(initFirebase, 100);
+    return;
+  }
+  
+  // Firebase設定
+  const firebaseConfig = {
+    apiKey: "AIzaSyCFD2IFYU34YK6Z_PRs2pTuZ-WZIj9Vy6M",
+    authDomain: "golf-olympic.firebaseapp.com",
+    databaseURL: "https://golf-olympic-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "golf-olympic",
+    storageBucket: "golf-olympic.firebasestorage.app",
+    messagingSenderId: "631997493044",
+    appId: "1:631997493044:web:0a3f55657ac942d9fdff61"
+  };
+
+  // Firebase初期化
+  firebase.initializeApp(firebaseConfig);
+  window.database = firebase.database();
+  window.auth = firebase.auth();
+  window.googleProvider = new firebase.auth.GoogleAuthProvider();
+
+  // グローバルに公開（v8 compat APIスタイル）
+  window.fbDB = {
+    ref: (path) => window.database.ref(path),
+    _db: window.database,
+    _onValue: (ref, callback) => ref.on('value', callback),
+    _off: (ref) => ref.off()
+  };
+  window.firebaseReady = true;
+
+  console.log('✅ Firebase v8 initialized');
+  console.log('window.fbDB:', window.fbDB);
+  console.log('window.firebaseReady:', window.firebaseReady);
+  
+  // 認証状態の監視を開始
+  window.auth.onAuthStateChanged((user) => {
+    if(user){
+      D.user = user;
+      D.isAuthenticated = true;
+      console.log('👤 ログイン中:', user.email);
+      checkUserAuthorization(user);
+    }else{
+      D.user = null;
+      D.isAuthenticated = false;
+      D.isAuthorized = false;
+      console.log('👤 未ログイン');
+      render();
+    }
+  });
+}
+
+// Firebase初期化を開始
+initFirebase();
+
 let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,isJoinedRound:false,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:3,silver:2,bronze:1,iron:0,diamond:5,nearpin:1,dracon:1,eagle:3,birdie:1,sand:-1,flag:1,threeputt:-1},nikaiNearpin:false,nikaiDracon:false},showPresets:false,showSaveForm:false,showRounds:false,showApiSetup:false,showRoundIdInput:false,showAvatarPicker:false,showFirebaseManager:false,showHowToUse:false,avatarPickerIndex:null,alert:null,apiUrl:localStorage.getItem('sheets_api_url')||'',debugLog:[],firebaseRounds:[],adminMode:false,user:null,isAuthenticated:false,isAuthorized:false};
 // ラウンドキャッシュ
 let roundCache = {};
@@ -249,7 +273,7 @@ async function saveRound(){
   if(window.firebaseReady && window.fbDB){
     try{
       const dbRef = window.fbDB.ref('rounds/' + D.rid);
-      await window.fbDB._set(dbRef, r);
+      await dbRef.set(r);
       console.log('Firebase保存完了');
     }catch(err){
       console.log('Firebase保存エラー:',err);
@@ -379,7 +403,7 @@ async function deleteFirebaseRound(id){
   log('削除開始: ' + id);
   try{
     const dbRef = window.fbDB.ref('rounds/' + id);
-    await window.fbDB._set(dbRef, null);
+    await dbRef.set(null);
     log('✅ 削除完了: ' + id);
     alert('✅ 削除しました');
     // 一覧を再読込
@@ -451,7 +475,7 @@ function render(){
 // 認証関数
 async function handleGoogleLogin(){
   try{
-    const result = await signInWithPopup(auth, googleProvider);
+    const result = await window.auth.signInWithPopup(window.googleProvider);
     console.log('✅ ログイン成功:', result.user.email);
   }catch(error){
     console.error('❌ ログインエラー:', error);
@@ -460,7 +484,7 @@ async function handleGoogleLogin(){
 }
 async function handleLogout(){
   try{
-    await signOut(auth);
+    await window.auth.signOut();
     D.user = null;
     D.isAuthenticated = false;
     D.isAuthorized = false;
@@ -472,8 +496,8 @@ async function handleLogout(){
 }
 async function checkUserAuthorization(user){
   try{
-    const userRef = ref(database, `authorized_users/${user.uid}`);
-    const snapshot = await get(userRef);
+    const userRef = window.database.ref(`authorized_users/${user.uid}`);
+    const snapshot = await userRef.once('value');
     if(snapshot.exists()){
       const userData = snapshot.val();
       D.isAuthorized = userData.authorized === true;
@@ -488,22 +512,6 @@ async function checkUserAuthorization(user){
   }
   render();
 }
-// 認証状態の監視
-// 認証状態の監視
-onAuthStateChanged(auth, (user) => {
-  if(user){
-    D.user = user;
-    D.isAuthenticated = true;
-    console.log('👤 ログイン中:', user.email);
-    checkUserAuthorization(user);
-  }else{
-    D.user = null;
-    D.isAuthenticated = false;
-    D.isAuthorized = false;
-    console.log('👤 未ログイン');
-    render();
-  }
-});
 function init(){
   // URLパラメータで管理者モードをチェック
   const urlParams = new URLSearchParams(window.location.search);
