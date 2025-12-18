@@ -134,7 +134,7 @@ function initFirebase() {
 // Firebase初期化を開始
 initFirebase();
 
-let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,isJoinedRound:false,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:3,silver:2,bronze:1,iron:0,diamond:5,nearpin:1,dracon:1,eagle:3,birdie:1,sand:-1,flag:1,threeputt:-1},nikaiNearpin:false,nikaiDracon:false},showPresets:false,showSaveForm:false,showRounds:false,showRoundIdInput:false,showAvatarPicker:false,showFirebaseManager:false,showHowToUse:false,avatarPickerIndex:null,alert:null,debugLog:[],firebaseRounds:[],adminMode:false,user:null,isAuthenticated:false,isAuthorized:false};
+let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,isJoinedRound:false,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:3,silver:2,bronze:1,iron:0,diamond:5,nearpin:1,dracon:1,eagle:3,birdie:1,sand:-1,flag:1,threeputt:-1},nikaiNearpin:false,nikaiDracon:false},showPresets:false,showSaveForm:false,showRounds:false,showRoundIdInput:false,showAvatarPicker:false,showFirebaseManager:false,showUserManager:false,showHowToUse:false,avatarPickerIndex:null,alert:null,debugLog:[],firebaseRounds:[],userList:[],adminMode:false,user:null,isAuthenticated:false,isAuthorized:false};
 // ラウンドキャッシュ
 let roundCache = {};
 // デバッグログ関数
@@ -424,6 +424,92 @@ async function deleteFirebaseRound(id){
     alert('削除エラー: ' + err.message);
   }
 }
+// ユーザー管理関数
+async function loadAllUsers(){
+  if(!window.firebaseReady || !window.database){
+    alert('Firebase未初期化です');
+    return;
+  }
+  
+  console.log('👥 ユーザー一覧取得開始');
+  try{
+    const usersRef = window.database.ref('authorized_users');
+    const snapshot = await usersRef.once('value');
+    const data = snapshot.val();
+    
+    if(data){
+      D.userList = Object.entries(data).map(([uid, userData]) => ({
+        uid,
+        email: userData.email || '不明',
+        authorized: userData.authorized === true,
+        addedAt: userData.addedAt || null
+      })).sort((a,b) => {
+        if(a.authorized !== b.authorized) return a.authorized ? -1 : 1;
+        return (b.addedAt || 0) - (a.addedAt || 0);
+      });
+      console.log(`✅ ${D.userList.length}人取得完了`);
+    }else{
+      D.userList = [];
+      console.log('ユーザーなし');
+    }
+    render();
+  }catch(err){
+    console.error('❌ ユーザー取得エラー:', err);
+    alert('エラー: ' + err.message);
+  }
+}
+async function approveUser(uid, email){
+  if(!confirm(`${email}\nを承認しますか？\n\n承認するとスコア入力・ラウンド作成が可能になります。`)){
+    return;
+  }
+  
+  try{
+    const userRef = window.database.ref(`authorized_users/${uid}`);
+    await userRef.set({
+      email: email,
+      authorized: true,
+      addedAt: Date.now()
+    });
+    console.log('✅ 承認完了:', email);
+    alert('✅ 承認しました');
+    await loadAllUsers();
+  }catch(err){
+    console.error('❌ 承認エラー:', err);
+    alert('承認エラー: ' + err.message);
+  }
+}
+async function revokeUser(uid, email){
+  if(!confirm(`${email}\nの承認を取り消しますか？\n\n閲覧専用モードに戻ります。`)){
+    return;
+  }
+  
+  try{
+    const userRef = window.database.ref(`authorized_users/${uid}/authorized`);
+    await userRef.set(false);
+    console.log('✅ 却下完了:', email);
+    alert('✅ 承認を取り消しました');
+    await loadAllUsers();
+  }catch(err){
+    console.error('❌ 却下エラー:', err);
+    alert('却下エラー: ' + err.message);
+  }
+}
+async function removeUser(uid, email){
+  if(!confirm(`${email}\nを削除しますか？\n\nこの操作は取り消せません。`)){
+    return;
+  }
+  
+  try{
+    const userRef = window.database.ref(`authorized_users/${uid}`);
+    await userRef.set(null);
+    console.log('✅ 削除完了:', email);
+    alert('✅ 削除しました');
+    await loadAllUsers();
+  }catch(err){
+    console.error('❌ 削除エラー:', err);
+    alert('削除エラー: ' + err.message);
+  }
+}
 function cacheCurrentRound(){
   if(!D.rid)return;
   roundCache[D.rid]={
@@ -479,6 +565,7 @@ function rPresets(){const list=JSON.parse(localStorage.getItem('plist')||'[]');r
 function rSaveForm(){const name=D.cfg.courseName||'未設定';const date=D.cfg.date.replace(/-/g,'/');const presetName=name+' '+date;return`<div class="modal" onclick="if(event.target===this){D.showSaveForm=false;render()}"><div class="modal-content" onclick="event.stopPropagation()"><h2>💾 プリセット保存</h2><div style="margin:20px 0;padding:20px;background:#f3f4f6;border-radius:12px;text-align:center"><p style="color:#6b7280;margin-bottom:8px;font-size:14px">保存する設定名</p><p style="font-size:18px;font-weight:bold">${presetName}</p></div><div style="display:flex;gap:12px"><button class="btn-secondary" style="flex:1" onclick="D.showSaveForm=false;render()">キャンセル</button><button class="btn-primary" style="flex:1" onclick="savePresetSubmit()">保存</button></div></div></div>`}
 function rRounds(){const list=JSON.parse(localStorage.getItem('rounds_list')||'[]');return`<div class="modal" onclick="if(event.target===this){D.showRounds=false;render()}"><div class="modal-content" onclick="event.stopPropagation()"><h2>📂 ラウンド管理</h2><div style="max-height:55vh;overflow-y:auto;margin:20px 0">${list.length===0?'<p style="color:#6b7280;padding:40px 20px;text-align:center">データなし</p>':''}${list.map(r=>`<div class="preset-item" style="border-left:4px solid ${r.isJoined?'#2563eb':'#22c55e'}"><div class="preset-name" style="color:${r.isJoined?'#2563eb':'inherit'}">${r.isJoined?'🔗 ':'📝 '}${r.courseName} (${r.date})</div><div class="preset-btns"><button class="btn-load" onclick="event.stopPropagation();loadRound('${r.id}');D.showRounds=false">📥 読込</button><button class="btn-del" onclick="event.stopPropagation();deleteRound('${r.id}')">🗑</button></div></div>`).join('')}</div><div style="padding:12px;background:#f0f9ff;border-radius:8px;margin-bottom:16px"><p style="font-size:12px;color:#0369a1"><strong>🔗 青色：</strong>参加したラウンド（他の人が作成）</p><p style="font-size:12px;color:#0369a1;margin-top:4px"><strong>📝 緑色：</strong>自分で作成したラウンド</p></div><div style="display:flex;gap:12px">${D.adminMode?'<button class="btn-secondary" style="flex:1" onclick="D.showFirebaseManager=true;D.showRounds=false;loadFirebaseRounds()">☁️ Firebase管理</button>':''}<button class="btn-secondary" style="flex:1" onclick="D.showRounds=false;render()">✖️ 閉じる</button></div></div></div>`}
 function rFirebaseManager(){return`<div class="modal" onclick="if(event.target===this){D.showFirebaseManager=false;render()}"><div class="modal-content" onclick="event.stopPropagation()"><h2>☁️ Firebase管理</h2><div style="background:#dcfce7;padding:8px;border-radius:8px;margin-bottom:12px;text-align:center"><p style="font-size:11px;color:#166534;font-weight:bold">🔓 管理者モード</p></div><div style="max-height:55vh;overflow-y:auto;margin:20px 0">${D.firebaseRounds.length===0?'<p style="color:#6b7280;padding:40px 20px;text-align:center">データなし</p>':''}${D.firebaseRounds.map(r=>`<div class="preset-item"><div class="preset-name">${r.courseName}<div style="font-size:11px;color:#6b7280;margin-top:4px">${r.date} | ${r.playerCount}人 | ${new Date(r.updatedAt).toLocaleString('ja-JP')}</div><div style="font-size:10px;font-family:monospace;color:#9ca3af;margin-top:4px">${r.id}</div></div><div class="preset-btns"><button class="btn-del" onclick="event.stopPropagation();deleteFirebaseRound('${r.id}')">🗑 削除</button></div></div>`).join('')}</div><div style="background:#fef3c7;padding:12px;border-radius:8px;margin-bottom:16px"><p style="font-size:12px;color:#92400e">⚠️ ここから削除すると、Firebaseから完全に削除されます。参加者全員がアクセスできなくなります。</p></div><div style="display:flex;gap:12px"><button class="btn-secondary" style="flex:1" onclick="loadFirebaseRounds()">🔄 更新</button><button class="btn-secondary" style="flex:1" onclick="D.showFirebaseManager=false;render()">✖️ 閉じる</button></div></div></div>`}
+function rUserManager(){return`<div class="modal" onclick="if(event.target===this){D.showUserManager=false;render()}"><div class="modal-content" onclick="event.stopPropagation()"><h2>👥 ユーザー承認管理</h2><div style="background:#dcfce7;padding:8px;border-radius:8px;margin-bottom:12px;text-align:center"><p style="font-size:11px;color:#166534;font-weight:bold">🔓 管理者モード</p></div><div style="max-height:55vh;overflow-y:auto;margin:20px 0">${D.userList.length===0?'<p style="color:#6b7280;padding:40px 20px;text-align:center">読込中...</p>':''}${D.userList.map(u=>`<div class="preset-item" style="border-left:4px solid ${u.authorized?'#22c55e':'#f59e0b'}"><div class="preset-name">${u.authorized?'✅':'⏳'} ${u.email}<div style="font-size:11px;color:#6b7280;margin-top:4px">UID: ${u.uid}</div>${u.addedAt?`<div style="font-size:10px;color:#9ca3af;margin-top:2px">${new Date(u.addedAt).toLocaleString('ja-JP')}</div>`:''}</div><div class="preset-btns">${u.authorized?`<button class="btn-del" onclick="event.stopPropagation();revokeUser('${u.uid}','${u.email}')">❌ 却下</button>`:`<button class="btn-load" onclick="event.stopPropagation();approveUser('${u.uid}','${u.email}')">✅ 承認</button><button class="btn-del" onclick="event.stopPropagation();removeUser('${u.uid}','${u.email}')">🗑 削除</button>`}</div></div>`).join('')}</div><div style="background:#e0f2fe;padding:12px;border-radius:8px;margin-bottom:16px"><p style="font-size:12px;color:#0369a1"><strong>✅ 承認済み：</strong>スコア入力・ラウンド作成が可能</p><p style="font-size:12px;color:#0369a1;margin-top:4px"><strong>⏳ 未承認：</strong>閲覧・参加のみ可能</p></div><div style="display:flex;gap:12px"><button class="btn-secondary" style="flex:1" onclick="loadAllUsers()">🔄 更新</button><button class="btn-secondary" style="flex:1" onclick="D.showUserManager=false;render()">✖️ 閉じる</button></div></div></div>`}
 function rRoundIdInput(){return`<div class="modal" onclick="if(event.target===this){D.showRoundIdInput=false;render()}"><div class="modal-content" onclick="event.stopPropagation()"><h2>🔗 ラウンドに参加</h2><div style="margin:20px 0"><p style="font-size:13px;color:#6b7280;margin-bottom:12px">他のプレイヤーから共有されたラウンドIDを入力</p><input id="roundIdInput" class="input-full" placeholder="round_1234567890123" style="font-size:14px;font-family:monospace"></div><div style="background:#e0f2fe;padding:12px;border-radius:8px;margin-bottom:16px"><p style="font-size:12px;color:#0369a1">💡 同じラウンドIDを使用すると、全員が同じスコアデータを共有できます</p></div>${D.debugLog.length>0?`<div style="background:#f3f4f6;padding:8px;border-radius:8px;margin-bottom:16px;max-height:150px;overflow-y:auto"><p style="font-size:10px;font-weight:bold;margin-bottom:4px">📋 デバッグログ</p>${D.debugLog.map(l=>`<p style="font-size:10px;font-family:monospace;margin:2px 0">${l}</p>`).join('')}</div>`:''}<div style="display:flex;gap:12px"><button class="btn-secondary" style="flex:1" onclick="D.showRoundIdInput=false;render()">キャンセル</button><button class="btn-primary" style="flex:1" onclick="joinRound()">参加</button></div></div></div>`}
 function render(){
   // 認証チェック（未ログインのみブロック）
@@ -486,7 +573,7 @@ function render(){
     document.getElementById('app').innerHTML = rLogin();
     return;
   }
-  const v={input:rInput,list:rList,settings:rSet};let h=v[D.view]();if(D.showPresets)h+=rPresets();if(D.showSaveForm)h+=rSaveForm();if(D.showRounds)h+=rRounds();if(D.showRoundIdInput)h+=rRoundIdInput();if(D.showAvatarPicker)h+=rAvatarPicker();if(D.showFirebaseManager)h+=rFirebaseManager();if(D.showHowToUse)h+=rHowToUse();if(D.alert)h+=`<div class="alert">${D.alert}</div>`;h+=`<div class="nav"><button class="nav-btn ${D.view==='input'?'active':''}" onclick="D.view='input';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg><span>入力</span></button><button class="nav-btn ${D.view==='list'?'active':''}" onclick="D.view='list';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg><span>一覧</span></button><button class="nav-btn ${D.view==='settings'?'active':''}" onclick="D.view='settings';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg><span>設定</span></button></div>`;document.getElementById('app').innerHTML=h}
+  const v={input:rInput,list:rList,settings:rSet};let h=v[D.view]();if(D.showPresets)h+=rPresets();if(D.showSaveForm)h+=rSaveForm();if(D.showRounds)h+=rRounds();if(D.showRoundIdInput)h+=rRoundIdInput();if(D.showAvatarPicker)h+=rAvatarPicker();if(D.showFirebaseManager)h+=rFirebaseManager();if(D.showUserManager)h+=rUserManager();if(D.showHowToUse)h+=rHowToUse();if(D.alert)h+=`<div class="alert">${D.alert}</div>`;h+=`<div class="nav"><button class="nav-btn ${D.view==='input'?'active':''}" onclick="D.view='input';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg><span>入力</span></button><button class="nav-btn ${D.view==='list'?'active':''}" onclick="D.view='list';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg><span>一覧</span></button><button class="nav-btn ${D.view==='settings'?'active':''}" onclick="D.view='settings';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg><span>設定</span></button></div>`;document.getElementById('app').innerHTML=h}
 // 認証関数
 // 認証関数
 async function handleGoogleLogin(){
