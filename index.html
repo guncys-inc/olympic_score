@@ -507,14 +507,19 @@ async function checkUserAuthorization(user){
     if(snapshot.exists()){
       const userData = snapshot.val();
       D.isAuthorized = userData.authorized === true;
-      console.log('✅ 承認状態:', D.isAuthorized, 'for', user.email);
+      if(D.isAuthorized){
+        console.log('✅ 承認済みユーザー:', user.email);
+      }else{
+        console.log('⚠️  未承認ユーザー（閲覧専用）:', user.email);
+      }
     }else{
       D.isAuthorized = false;
-      console.log('⚠️  ユーザーが承認リストに存在しません:', user.email);
+      console.log('⚠️  未承認ユーザー（閲覧専用）:', user.email);
     }
   }catch(error){
-    console.error('❌ 承認チェックエラー:', error);
+    // 承認リストに存在しない場合（閲覧専用モード）
     D.isAuthorized = false;
+    console.log('ℹ️  閲覧専用モード:', user.email);
   }
   render();
 }
