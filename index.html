@@ -71,16 +71,16 @@ input,select{padding:12px;border:1px solid #e5e7eb;border-radius:8px;font-size:1
 .btn-score.green{background:#22c55e;color:white}.btn-score.blue{background:#3b82f6;color:white}.btn-score.white{background:#f3f4f6;color:#1f2937}
 .alert{position:fixed;top:80px;left:50%;transform:translateX(-50%);background:#16a34a;color:white;padding:20px 32px;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,0.3);z-index:200000;font-weight:bold;font-size:18px;max-width:90%;text-align:center}
 /* 速報バー */
-.live-score-bar{position:fixed;bottom:80px;left:0;right:0;background:linear-gradient(135deg,#1e40af 0%,#3b82f6 100%);color:white;padding:8px 12px;box-shadow:0 -2px 10px rgba(0,0,0,0.2);z-index:9998;animation:slideUp 0.3s ease-out}
+.live-score-bar{position:fixed;bottom:80px;left:0;right:0;background:linear-gradient(135deg,#1e40af 0%,#3b82f6 100%);color:white;padding:14px 12px;box-shadow:0 -2px 10px rgba(0,0,0,0.2);z-index:9998;animation:slideUp 0.3s ease-out}
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
-.live-score-content{display:flex;align-items:center;gap:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap}
-.live-score-content::-webkit-scrollbar{height:4px}
-.live-score-content::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.3);border-radius:2px}
-.live-rank{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:4px 8px;background:rgba(255,255,255,0.15);border-radius:6px;flex-shrink:0}
-.live-rank-medal{font-size:16px}
-.live-rank-name{font-weight:600}
-.live-rank-score{font-weight:bold;margin-left:2px}
-.live-toggle{position:absolute;top:-32px;right:12px;background:#3b82f6;color:white;border:none;padding:6px 12px;border-radius:6px 6px 0 0;font-size:11px;cursor:pointer;box-shadow:0 -2px 6px rgba(0,0,0,0.1)}
+.live-score-content{display:flex;align-items:center;gap:16px;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap;padding:2px 0}
+.live-score-content::-webkit-scrollbar{height:6px}
+.live-score-content::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.4);border-radius:3px}
+.live-rank{display:inline-flex;align-items:center;gap:8px;font-size:15px;padding:8px 12px;background:rgba(255,255,255,0.2);border-radius:8px;flex-shrink:0}
+.live-rank-medal{font-size:20px}
+.live-rank-name{font-weight:700}
+.live-rank-score{font-weight:bold;margin-left:4px;font-size:16px}
+.live-toggle{position:absolute;top:-36px;right:12px;background:#3b82f6;color:white;border:none;padding:8px 14px;border-radius:8px 8px 0 0;font-size:12px;cursor:pointer;box-shadow:0 -2px 6px rgba(0,0,0,0.1);font-weight:600}
 .overflow-x{overflow-x:auto}
 .pull-indicator{position:fixed;top:0;left:50%;transform:translateX(-50%);padding:8px 16px;background:#16a34a;color:white;border-radius:0 0 8px 8px;font-size:12px;opacity:0;pointer-events:none;transition:opacity 0.3s;z-index:9999}
 .pull-indicator.active{opacity:1}
