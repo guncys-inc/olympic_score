@@ -70,6 +70,17 @@ input,select{padding:12px;border:1px solid #e5e7eb;border-radius:8px;font-size:1
 .btn-score.iron{background:#6b7280;color:white}.btn-score.diamond{background:#8b5cf6;color:white}.btn-score.red{background:#ef4444;color:white}
 .btn-score.green{background:#22c55e;color:white}.btn-score.blue{background:#3b82f6;color:white}.btn-score.white{background:#f3f4f6;color:#1f2937}
 .alert{position:fixed;top:80px;left:50%;transform:translateX(-50%);background:#16a34a;color:white;padding:20px 32px;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,0.3);z-index:200000;font-weight:bold;font-size:18px;max-width:90%;text-align:center}
+/* 速報バー */
+.live-score-bar{position:fixed;bottom:80px;left:0;right:0;background:linear-gradient(135deg,#1e40af 0%,#3b82f6 100%);color:white;padding:8px 12px;box-shadow:0 -2px 10px rgba(0,0,0,0.2);z-index:9998;animation:slideUp 0.3s ease-out}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.live-score-content{display:flex;align-items:center;gap:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap}
+.live-score-content::-webkit-scrollbar{height:4px}
+.live-score-content::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.3);border-radius:2px}
+.live-rank{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:4px 8px;background:rgba(255,255,255,0.15);border-radius:6px;flex-shrink:0}
+.live-rank-medal{font-size:16px}
+.live-rank-name{font-weight:600}
+.live-rank-score{font-weight:bold;margin-left:2px}
+.live-toggle{position:absolute;top:-32px;right:12px;background:#3b82f6;color:white;border:none;padding:6px 12px;border-radius:6px 6px 0 0;font-size:11px;cursor:pointer;box-shadow:0 -2px 6px rgba(0,0,0,0.1)}
 .overflow-x{overflow-x:auto}
 .pull-indicator{position:fixed;top:0;left:50%;transform:translateX(-50%);padding:8px 16px;background:#16a34a;color:white;border-radius:0 0 8px 8px;font-size:12px;opacity:0;pointer-events:none;transition:opacity 0.3s;z-index:9999}
 .pull-indicator.active{opacity:1}
@@ -148,7 +159,7 @@ function initFirebase() {
 // Firebase初期化を開始
 initFirebase();
 
-let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,isJoinedRound:false,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:3,silver:2,bronze:1,iron:0,diamond:5,nearpin:1,dracon:1,eagle:3,birdie:1,sand:-1,flag:1,threeputt:-1},nikaiNearpin:false,nikaiDracon:false},showPresets:false,showSaveForm:false,showRounds:false,showRoundIdInput:false,showAvatarPicker:false,showFirebaseManager:false,showUserManager:false,showHowToUse:false,avatarPickerIndex:null,alert:null,debugLog:[],firebaseRounds:[],userList:[],adminMode:false,user:null,isAuthenticated:false,isAuthorized:false};
+let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,isJoinedRound:false,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:3,silver:2,bronze:1,iron:0,diamond:5,nearpin:1,dracon:1,eagle:3,birdie:1,sand:-1,flag:1,threeputt:-1},nikaiNearpin:false,nikaiDracon:false},showPresets:false,showSaveForm:false,showRounds:false,showRoundIdInput:false,showAvatarPicker:false,showFirebaseManager:false,showUserManager:false,showHowToUse:false,avatarPickerIndex:null,alert:null,debugLog:[],firebaseRounds:[],userList:[],adminMode:false,user:null,isAuthenticated:false,isAuthorized:false,showLiveScore:localStorage.getItem('showLiveScore')!=='false'};
 // ラウンドキャッシュ
 let roundCache = {};
 // デバッグログ関数
@@ -619,6 +630,43 @@ function calc(h,p){const my=raw(h,p);let tot=0;for(let i=1;i<=D.cfg.cnt;i++)tot+
 function tOut(p){let s=0;for(let h=1;h<=9;h++)s+=calc(h,p);return s}
 function tIn(p){let s=0;for(let h=10;h<=18;h++)s+=calc(h,p);return s}
 function tAll(p){return tOut(p)+tIn(p)}
+// 速報バー用：順位計算
+function getRankings(){
+  const players=[];
+  for(let p=1;p<=D.cfg.cnt;p++){
+    players.push({
+      id:p,
+      name:D.cfg.names[p-1],
+      avatar:D.cfg.avs[p-1],
+      score:tAll(p)
+    });
+  }
+  // スコア降順でソート
+  players.sort((a,b)=>b.score-a.score);
+  // 同点の場合は同順位
+  let rank=1;
+  players.forEach((player,idx)=>{
+    if(idx>0 && player.score<players[idx-1].score){
+      rank=idx+1;
+    }
+    player.rank=rank;
+  });
+  return players;
+}
+function toggleLiveScore(){
+  D.showLiveScore=!D.showLiveScore;
+  localStorage.setItem('showLiveScore',D.showLiveScore);
+  render();
+}
+function rLiveScoreBar(){
+  if(!D.rid || D.view==='list') return '';
+  if(!D.showLiveScore){
+    return`<button class="live-toggle" style="bottom:80px;right:12px;top:auto" onclick="toggleLiveScore()">📊 順位</button>`;
+  }
+  const rankings=getRankings();
+  const medals=['🥇','🥈','🥉'];
+  return`<div class="live-score-bar"><button class="live-toggle" onclick="toggleLiveScore()">✕</button><div class="live-score-content">${rankings.map(p=>`<div class="live-rank"><span class="live-rank-medal">${medals[p.rank-1]||p.rank+'位'}</span><span class="live-rank-name">${p.avatar} ${p.name}</span><span class="live-rank-score">${p.score>0?'+':''}${p.score}pt</span></div>`).join('')}</div></div>`;
+}
 function selectAvatar(idx,avatar){D.cfg.avs[idx]=avatar;D.showAvatarPicker=false;D.avatarPickerIndex=null;save();render()}
 function openAvatarPicker(idx){D.showAvatarPicker=true;D.avatarPickerIndex=idx;render()}
 function selectAvatar(idx,avatar){D.cfg.avs[idx]=avatar;D.showAvatarPicker=false;D.avatarPickerIndex=null;save();render()}
@@ -645,7 +693,7 @@ function render(){
     document.getElementById('app').innerHTML = rLogin();
     return;
   }
-  const v={input:rInput,list:rList,settings:rSet};let h=v[D.view]();if(D.showPresets)h+=rPresets();if(D.showSaveForm)h+=rSaveForm();if(D.showRounds)h+=rRounds();if(D.showRoundIdInput)h+=rRoundIdInput();if(D.showAvatarPicker)h+=rAvatarPicker();if(D.showFirebaseManager)h+=rFirebaseManager();if(D.showUserManager)h+=rUserManager();if(D.showHowToUse)h+=rHowToUse();if(D.alert)h+=`<div class="alert">${D.alert}</div>`;h+=`<div class="nav"><button class="nav-btn ${D.view==='input'?'active':''}" onclick="D.view='input';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg><span>入力</span></button><button class="nav-btn ${D.view==='list'?'active':''}" onclick="D.view='list';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg><span>一覧</span></button><button class="nav-btn ${D.view==='settings'?'active':''}" onclick="D.view='settings';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg><span>設定</span></button></div>`;document.getElementById('app').innerHTML=h}
+  const v={input:rInput,list:rList,settings:rSet};let h=v[D.view]();if(D.showPresets)h+=rPresets();if(D.showSaveForm)h+=rSaveForm();if(D.showRounds)h+=rRounds();if(D.showRoundIdInput)h+=rRoundIdInput();if(D.showAvatarPicker)h+=rAvatarPicker();if(D.showFirebaseManager)h+=rFirebaseManager();if(D.showUserManager)h+=rUserManager();if(D.showHowToUse)h+=rHowToUse();if(D.alert)h+=`<div class="alert">${D.alert}</div>`;h+=rLiveScoreBar();h+=`<div class="nav"><button class="nav-btn ${D.view==='input'?'active':''}" onclick="D.view='input';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg><span>入力</span></button><button class="nav-btn ${D.view==='list'?'active':''}" onclick="D.view='list';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg><span>一覧</span></button><button class="nav-btn ${D.view==='settings'?'active':''}" onclick="D.view='settings';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg><span>設定</span></button></div>`;document.getElementById('app').innerHTML=h}
 // 認証関数
 // 認証関数
 async function handleGoogleLogin(){
