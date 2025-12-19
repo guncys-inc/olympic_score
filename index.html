@@ -67,6 +67,22 @@ input,select{padding:12px;border:1px solid #e5e7eb;border-radius:8px;font-size:1
 .overflow-x{overflow-x:auto}
 .pull-indicator{position:fixed;top:0;left:50%;transform:translateX(-50%);padding:8px 16px;background:#16a34a;color:white;border-radius:0 0 8px 8px;font-size:12px;opacity:0;pointer-events:none;transition:opacity 0.3s;z-index:9999}
 .pull-indicator.active{opacity:1}
+/* ダークモード */
+body.dark-mode{background:linear-gradient(to bottom,#1a1a1a,#0f172a);color:#e5e7eb}
+body.dark-mode .card{background:#1f2937;color:#e5e7eb}
+body.dark-mode .input-full{background:#374151;border-color:#4b5563;color:#e5e7eb}
+body.dark-mode .btn{background:#374151;color:#e5e7eb}
+body.dark-mode .btn:hover{background:#4b5563}
+body.dark-mode .btn-primary{background:#2563eb}
+body.dark-mode .btn-secondary{background:#4b5563}
+body.dark-mode .modal-content{background:#1f2937;color:#e5e7eb}
+body.dark-mode table{color:#e5e7eb}
+body.dark-mode .preset-item{background:#374151;border-color:#4b5563}
+body.dark-mode .preset-name{color:#e5e7eb}
+body.dark-mode .bg-gray-50{background:#374151}
+body.dark-mode .nav{background:#1f2937;border-top-color:#374151}
+body.dark-mode .nav-btn{color:#9ca3af}
+body.dark-mode .nav-btn.active{color:#3b82f6}
 </style>
 </head>
 <body>
@@ -142,7 +158,7 @@ function initFirebase() {
 // Firebase初期化を開始
 initFirebase();
 
-let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,isJoinedRound:false,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:3,silver:2,bronze:1,iron:0,diamond:5,nearpin:1,dracon:1,eagle:3,birdie:1,sand:-1,flag:1,threeputt:-1},nikaiNearpin:false,nikaiDracon:false},showPresets:false,showSaveForm:false,showRounds:false,showRoundIdInput:false,showAvatarPicker:false,showFirebaseManager:false,showUserManager:false,showHowToUse:false,avatarPickerIndex:null,alert:null,debugLog:[],firebaseRounds:[],userList:[],adminMode:false,user:null,isAuthenticated:false,isAuthorized:false};
+let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,isJoinedRound:false,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:3,silver:2,bronze:1,iron:0,diamond:5,nearpin:1,dracon:1,eagle:3,birdie:1,sand:-1,flag:1,threeputt:-1},nikaiNearpin:false,nikaiDracon:false},showPresets:false,showSaveForm:false,showRounds:false,showRoundIdInput:false,showAvatarPicker:false,showFirebaseManager:false,showUserManager:false,showHowToUse:false,avatarPickerIndex:null,alert:null,debugLog:[],firebaseRounds:[],userList:[],adminMode:false,user:null,isAuthenticated:false,isAuthorized:false,darkMode:localStorage.getItem('darkMode')==='true'};
 // ラウンドキャッシュ
 let roundCache = {};
 // デバッグログ関数
@@ -367,6 +383,11 @@ async function deleteRound(id){console.log('ラウンド削除:',id);if(D.apiUrl
 async function syncFromSheets(){alert('❌ Sheets連携はデータ保存のみ対応しています。読込機能は今後追加予定です。')}
 const T=[{id:'gold',l:'金',c:'bg-yellow-400',g:'rank',icon:'🥇'},{id:'silver',l:'銀',c:'bg-gray-300',g:'rank',icon:'🥈'},{id:'bronze',l:'銅',c:'bg-orange-600',g:'rank',icon:'🥉'},{id:'iron',l:'鉄',c:'bg-gray-600',g:'rank',icon:'⚫'},{id:'diamond',l:'ダイヤ',c:'bg-blue-400',g:'rank',icon:'💎'},{id:'nearpin',l:'ニアピン',c:'bg-green-400',g:'special',icon:'🎯'},{id:'dracon',l:'ドラコン',c:'bg-purple-400',g:'special',icon:'🏌️'},{id:'eagle',l:'イーグル',c:'bg-yellow-700',g:'score',icon:'🦅'},{id:'birdie',l:'バーディー',c:'bg-red-400',g:'score',icon:'🐦'},{id:'sand',l:'砂',c:'bg-amber-200',g:'other',icon:'⛱️'},{id:'flag',l:'旗',c:'bg-green-600',g:'other',icon:'🚩'},{id:'threeputt',l:'3パット',c:'bg-blue-300',g:'other',icon:'⛳'},{id:'none',l:'なし',c:'bg-gray-400',g:'none',icon:'❌'}];
 function alert(m){D.alert=m;render();setTimeout(()=>{D.alert=null;render()},3000)}
+function toggleDarkMode(){
+  D.darkMode = !D.darkMode;
+  localStorage.setItem('darkMode', D.darkMode);
+  render();
+}
 function save(){saveRound()}
 async function loadFirebaseRounds(){
   if(!window.firebaseReady || !window.fbDB){
@@ -611,6 +632,13 @@ function rFirebaseManager(){return`<div class="modal" onclick="if(event.target==
 function rUserManager(){return`<div class="modal" onclick="if(event.target===this){D.showUserManager=false;render()}"><div class="modal-content" onclick="event.stopPropagation()"><h2>👥 ユーザー承認管理</h2><div style="background:#dcfce7;padding:8px;border-radius:8px;margin-bottom:12px;text-align:center"><p style="font-size:11px;color:#166534;font-weight:bold">🔓 管理者モード</p></div><div style="max-height:55vh;overflow-y:auto;margin:20px 0">${D.userList.length===0?'<p style="color:#6b7280;padding:40px 20px;text-align:center">読込中...</p>':''}${D.userList.map(u=>`<div class="preset-item" style="border-left:4px solid ${u.isAdmin?'#8b5cf6':u.authorized?'#22c55e':'#f59e0b'}"><div class="preset-name">${u.isAdmin?'👑':u.authorized?'✅':'⏳'} ${u.email}${u.isAdmin?' <span style="background:#8b5cf6;color:white;font-size:10px;padding:2px 6px;border-radius:4px;margin-left:4px">管理者</span>':''}<div style="font-size:11px;color:#6b7280;margin-top:4px">UID: ${u.uid}</div>${u.addedAt?`<div style="font-size:10px;color:#9ca3af;margin-top:2px">${new Date(u.addedAt).toLocaleString('ja-JP')}</div>`:''}</div><div class="preset-btns" style="display:flex;flex-direction:column;gap:4px">${u.authorized?`<button class="btn-del" onclick="event.stopPropagation();revokeUser('${u.uid}','${u.email}')" style="font-size:11px;padding:6px 8px">❌ 却下</button>`:`<button class="btn-load" onclick="event.stopPropagation();approveUser('${u.uid}','${u.email}')" style="font-size:11px;padding:6px 8px">✅ 承認</button>`}${u.authorized?(u.isAdmin?`<button class="btn-secondary" onclick="event.stopPropagation();removeAdmin('${u.uid}','${u.email}')" style="font-size:11px;padding:6px 8px;background:#8b5cf6;color:white">👤 管理者解除</button>`:`<button class="btn-secondary" onclick="event.stopPropagation();makeAdmin('${u.uid}','${u.email}')" style="font-size:11px;padding:6px 8px;background:#8b5cf6;color:white">👑 管理者にする</button>`):''}${!u.authorized?`<button class="btn-del" onclick="event.stopPropagation();removeUser('${u.uid}','${u.email}')" style="font-size:11px;padding:6px 8px">🗑 削除</button>`:''}</div></div>`).join('')}</div><div style="background:#e0f2fe;padding:12px;border-radius:8px;margin-bottom:16px"><p style="font-size:12px;color:#0369a1"><strong>👑 管理者：</strong>全機能+ユーザー管理が可能</p><p style="font-size:12px;color:#0369a1;margin-top:4px"><strong>✅ 承認済み：</strong>スコア入力・ラウンド作成が可能</p><p style="font-size:12px;color:#0369a1;margin-top:4px"><strong>⏳ 未承認：</strong>閲覧・参加のみ可能</p></div><div style="display:flex;gap:12px"><button class="btn-secondary" style="flex:1" onclick="loadAllUsers()">🔄 更新</button><button class="btn-secondary" style="flex:1" onclick="D.showUserManager=false;render()">✖️ 閉じる</button></div></div></div>`}
 function rRoundIdInput(){return`<div class="modal" onclick="if(event.target===this){D.showRoundIdInput=false;render()}"><div class="modal-content" onclick="event.stopPropagation()"><h2>🔗 ラウンドに参加</h2><div style="margin:20px 0"><p style="font-size:13px;color:#6b7280;margin-bottom:12px">他のプレイヤーから共有されたラウンドIDを入力</p><input id="roundIdInput" class="input-full" placeholder="round_1234567890123" style="font-size:14px;font-family:monospace"></div><div style="background:#e0f2fe;padding:12px;border-radius:8px;margin-bottom:16px"><p style="font-size:12px;color:#0369a1">💡 同じラウンドIDを使用すると、全員が同じスコアデータを共有できます</p></div>${D.debugLog.length>0?`<div style="background:#f3f4f6;padding:8px;border-radius:8px;margin-bottom:16px;max-height:150px;overflow-y:auto"><p style="font-size:10px;font-weight:bold;margin-bottom:4px">📋 デバッグログ</p>${D.debugLog.map(l=>`<p style="font-size:10px;font-family:monospace;margin:2px 0">${l}</p>`).join('')}</div>`:''}<div style="display:flex;gap:12px"><button class="btn-secondary" style="flex:1" onclick="D.showRoundIdInput=false;render()">キャンセル</button><button class="btn-primary" style="flex:1" onclick="joinRound()">参加</button></div></div></div>`}
 function render(){
+  // ダークモードのクラスを更新
+  if(D.darkMode){
+    document.body.classList.add('dark-mode');
+  }else{
+    document.body.classList.remove('dark-mode');
+  }
+  
   // 認証チェック（未ログインのみブロック）
   if(!D.isAuthenticated){
     document.getElementById('app').innerHTML = rLogin();
