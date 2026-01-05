@@ -1198,7 +1198,12 @@ function saveHandicapsToHistory(){
 }
 
 async function saveGlobalHandicapsToFirebase(){
-  if(!window.firebaseReady || !window.fbDB) return;
+  console.log('saveGlobalHandicapsToFirebase: 開始');
+  
+  if(!window.firebaseReady || !window.fbDB){
+    console.log('Firebase未初期化', {firebaseReady: window.firebaseReady, fbDB: !!window.fbDB});
+    return;
+  }
   
   try{
     // まず既存のグローバルハンディキャップを読み込み
@@ -1206,8 +1211,12 @@ async function saveGlobalHandicapsToFirebase(){
     const snapshot = await dbRef.once('value');
     const globalHandicaps = snapshot.val() || {};
     
+    console.log('既存のグローバルハンディキャップ:', globalHandicaps);
+    
     // 現在のプレイヤーペアのハンディキャップで更新
     const cnt = D.cfg.cnt;
+    console.log('プレイヤー数:', cnt, 'プレイヤー名:', D.cfg.names);
+    
     for(let i=0;i<cnt;i++){
       for(let j=i+1;j<cnt;j++){
         const name1 = D.cfg.names[i];
@@ -1215,21 +1224,38 @@ async function saveGlobalHandicapsToFirebase(){
         const pairKey = getPlayerPairKey(name1, name2);
         const dataKey = `p${i+1}_p${j+1}`;
         
+        console.log(`ペア ${i+1}-${j+1}:`, {
+          name1,
+          name2,
+          pairKey,
+          dataKey,
+          handicap: D.handicaps[dataKey]
+        });
+        
         if(D.handicaps[dataKey] !== undefined){
           globalHandicaps[pairKey] = D.handicaps[dataKey];
+          console.log(`✅ 保存: ${pairKey} = ${D.handicaps[dataKey]}`);
         }
       }
     }
     
     // グローバルテーブルに保存
+    console.log('Firebaseに保存するデータ:', globalHandicaps);
     await dbRef.set(globalHandicaps);
-    console.log('Firebase: グローバルハンディキャップ保存', globalHandicaps);
+    console.log('✅ Firebase: グローバルハンディキャップ保存成功');
   }catch(err){
-    console.log('Firebase: グローバルハンディキャップ保存エラー', err);
+    console.error('❌ Firebase: グローバルハンディキャップ保存エラー:', err);
   }
 }
 
 function saveHandicapData(){
+  console.log('saveHandicapData: 開始', {
+    DEBUG_BYPASS_AUTH: D.DEBUG_BYPASS_AUTH,
+    rid: D.rid,
+    handicaps: D.handicaps,
+    names: D.cfg.names
+  });
+  
   // プレイヤー名ベースの履歴に保存
   saveHandicapsToHistory();
   
