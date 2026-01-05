@@ -162,7 +162,7 @@ function initFirebase() {
 // Firebase初期化を開始
 initFirebase();
 
-let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,isJoinedRound:false,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:4,silver:3,bronze:2,iron:1,diamond:5,nearpin:5,dracon:5,eagle:10,birdie:5,sand:1,flag:1,threeputt:-1},nikaiNearpin:false,nikaiDracon:false},showPresets:false,showSaveForm:false,showRounds:false,showRoundIdInput:false,showAvatarPicker:false,showFirebaseManager:false,showUserManager:false,showHowToUse:false,avatarPickerIndex:null,alert:null,debugLog:[],firebaseRounds:[],userList:[],adminMode:false,user:null,isAuthenticated:false,isAuthorized:false,showLiveScore:localStorage.getItem('showLiveScore')!=='false',emailForSignIn:'',showEmailLogin:false,pendingUsersCount:0,handicaps:{},handicapHistory:{},hNames:{p1:'Aさん',p2:'Bさん',p3:'Cさん',p4:'Dさん'},hScores:{p1:{out:'',in:'',total:''},p2:{out:'',in:'',total:''},p3:{out:'',in:'',total:''},p4:{out:'',in:'',total:''}},hCourseName:'',DEBUG_BYPASS_AUTH:false};
+let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,isJoinedRound:false,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:4,silver:3,bronze:2,iron:1,diamond:5,nearpin:5,dracon:5,eagle:10,birdie:5,sand:1,flag:1,threeputt:-1},nikaiNearpin:false,nikaiDracon:false},showPresets:false,showSaveForm:false,showRounds:false,showRoundIdInput:false,showAvatarPicker:false,showFirebaseManager:false,showUserManager:false,showHowToUse:false,avatarPickerIndex:null,alert:null,debugLog:[],firebaseRounds:[],userList:[],adminMode:false,user:null,isAuthenticated:false,isAuthorized:false,showLiveScore:localStorage.getItem('showLiveScore')!=='false',emailForSignIn:'',showEmailLogin:false,pendingUsersCount:0,handicaps:{},handicapHistory:{},hNames:{p1:'Aさん',p2:'Bさん',p3:'Cさん',p4:'Dさん'},hScores:{p1:{out:'',in:'',total:''},p2:{out:'',in:'',total:''},p3:{out:'',in:'',total:''},p4:{out:'',in:'',total:''}},hCourseName:'',handicapLoaded:false,DEBUG_BYPASS_AUTH:false};
 // ラウンドキャッシュ
 let roundCache = {};
 // デバッグログ関数
@@ -735,7 +735,6 @@ function rSaveForm(){const name=D.cfg.courseName||'未設定';const date=D.cfg.d
 function rRounds(){const list=JSON.parse(localStorage.getItem('rounds_list')||'[]');return`<div class="modal" onclick="if(event.target===this){D.showRounds=false;render()}"><div class="modal-content" onclick="event.stopPropagation()"><h2>📂 ラウンド管理</h2><div style="max-height:55vh;overflow-y:auto;margin:20px 0">${list.length===0?'<p style="color:#6b7280;padding:40px 20px;text-align:center">データなし</p>':''}${list.map(r=>`<div class="preset-item" style="border-left:4px solid ${r.isJoined?'#2563eb':'#22c55e'}"><div class="preset-name" style="color:${r.isJoined?'#2563eb':'inherit'}">${r.isJoined?'🔗 ':'📝 '}${r.courseName} (${r.date})</div><div class="preset-btns"><button class="btn-load" onclick="event.stopPropagation();loadRound('${r.id}');D.showRounds=false">📥 読込</button><button class="btn-del" onclick="event.stopPropagation();deleteRound('${r.id}')">🗑</button></div></div>`).join('')}</div><div style="padding:12px;background:#f0f9ff;border-radius:8px;margin-bottom:16px"><p style="font-size:12px;color:#0369a1"><strong>🔗 青色：</strong>参加したラウンド（他の人が作成）</p><p style="font-size:12px;color:#0369a1;margin-top:4px"><strong>📝 緑色：</strong>自分で作成したラウンド</p></div><div style="display:flex;gap:12px">${D.adminMode?'<button class="btn-secondary" style="flex:1" onclick="D.showFirebaseManager=true;D.showRounds=false;loadFirebaseRounds()">☁️ Firebase管理</button>':''}${D.adminMode?`<button class="btn-secondary" style="flex:1;position:relative" onclick="D.showUserManager=true;D.showRounds=false;loadAllUsers()">👥 ユーザー管理${D.pendingUsersCount>0?`<span style="position:absolute;top:-8px;right:-8px;background:#ef4444;color:white;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,0.2)">${D.pendingUsersCount}</span>`:''}</button>`:''}<button class="btn-secondary" style="flex:1" onclick="D.showRounds=false;render()">✖️ 閉じる</button></div></div></div>`}
 function rHandicap(){
   syncHandicapNames();
-  loadHandicapsFromHistory(); // 履歴から自動読み込み
   const results = calculateHandicapResults();
   const cnt = D.cfg.cnt;
   const pairs = getHandicapPairs();
@@ -813,8 +812,11 @@ function syncHandicapNames(){
     D.hCourseName = D.cfg.courseName;
   }
   
-  // プレイヤー名ベースでハンディキャップ履歴から自動復元
-  loadHandicapFromHistory();
+  // プレイヤー名ベースでハンディキャップ履歴から自動復元（初回のみ）
+  if(!D.handicapLoaded){
+    D.handicapLoaded = true;
+    loadHandicapFromHistory();
+  }
 }
 
 function getPlayerPairKey(name1, name2){
@@ -861,7 +863,12 @@ function loadHandicapFromHistory(){
 }
 
 async function loadGlobalHandicapsFromFirebase(){
-  if(!window.firebaseReady || !window.fbDB) return;
+  console.log('saveGlobalHandicapsFromFirebase: 開始');
+  
+  if(!window.firebaseReady || !window.fbDB){
+    console.log('Firebase未初期化', {firebaseReady: window.firebaseReady, fbDB: !!window.fbDB});
+    return;
+  }
   
   try{
     const dbRef = window.fbDB.ref('globalHandicaps');
@@ -888,7 +895,7 @@ async function loadGlobalHandicapsFromFirebase(){
       }
     }
     
-    render();
+    console.log('✅ グローバルハンディキャップ読み込み完了');
   }catch(err){
     console.log('グローバルハンディキャップ読み込みエラー:', err);
   }
