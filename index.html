@@ -192,7 +192,7 @@ function generateSecureRoundId(){
     .replace(/=/g, ''); // パディング削除
   return 'round_' + base64;
 }
-function newRound(){
+async function newRound(){
   if(D.DEBUG_BYPASS_AUTH){
     alert('⚠️ デバッグモード中です\n\nFirebase機能（ラウンド作成・参加）は無効です。\nローカルストレージのみで動作します。');
     return;
@@ -220,8 +220,14 @@ function newRound(){
   
   localStorage.setItem('last_round_id', D.rid);
   console.log('新規ラウンド作成:',D.rid);
-  saveRound();
+  
+  // Firebase保存完了後にリアルタイム同期開始
+  await saveRound();
+  
+  // 新規作成時は初回読み込み扱いにしない（既に自分のデータを保存済み）
+  realtimeListenerFirstLoad = false;
   startRealtimeSync();
+  
   alert('✅ 新規ラウンド作成\n\nラウンドIDをコピーして他のプレイヤーと共有してください');
 }
 async function joinRound(){
@@ -316,6 +322,7 @@ async function joinRound(){
   }
 }
 let realtimeListener=null;
+let realtimeListenerFirstLoad=true; // 初回読み込みフラグをグローバル化
 function startRealtimeSync(){
   console.log('=== startRealtimeSync 開始 ===');
   console.log('D.rid:', D.rid);
@@ -334,10 +341,12 @@ function startRealtimeSync(){
     return;
   }
   
+  // 新しいラウンドに切り替わったらフラグをリセット
+  const currentRoundId = D.rid;
+  realtimeListenerFirstLoad = true;
+  
   const dbRef = window.fbDB.ref('rounds/'+D.rid);
   console.log('✅ Firebaseリスナー登録開始:', 'rounds/' + D.rid);
-  
-  let isFirstLoad = true; // 初回読み込みフラグ
   
   realtimeListener = window.fbDB._onValue(dbRef, (snapshot)=>{
     console.log('🔔 Firebaseリスナーコールバック実行');
@@ -349,15 +358,15 @@ function startRealtimeSync(){
     const data=snapshot.val();
     if(data){
       console.log('📥 リアルタイム更新受信:', {
-        isFirstLoad,
+        isFirstLoad: realtimeListenerFirstLoad,
         updatedAt: data.updatedAt,
         courseName: data.cfg?.courseName
       });
       
       // 初回読み込み時は通知なし
-      if(isFirstLoad){
+      if(realtimeListenerFirstLoad){
         console.log('⚪ 初回読み込み - 通知なし');
-        isFirstLoad = false;
+        realtimeListenerFirstLoad = false;
         D.cfg=data.cfg||D.cfg;
         D.scores=data.scores||{};
         D.nph=data.nph||{};
