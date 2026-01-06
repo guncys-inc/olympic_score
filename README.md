@@ -191,17 +191,18 @@ npx http-server
 {
   "rules": {
     "rounds": {
+      ".read": "auth != null && root.child('authorized_users').child(auth.uid).child('isAdmin').val() === true",
       "$roundId": {
         ".read": "auth != null",
         ".write": "auth != null && (
-          !data.exists() ||
-          root.child('authorized_users').child(auth.uid).child('isAuthorized').val() === true
+          root.child('authorized_users').child(auth.uid).child('isAdmin').val() === true ||
+          !data.exists()
         )"
       }
     },
     "globalHandicaps": {
       ".read": "auth != null",
-      ".write": "auth != null && root.child('authorized_users').child(auth.uid).child('isAuthorized').val() === true"
+      ".write": "auth != null"
     },
     "authorized_users": {
       ".read": "auth != null",
