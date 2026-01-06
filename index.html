@@ -842,11 +842,22 @@ function handlePlayerNameChange(index, newName){
   D.cfg.names[index] = newName;
   save();
   
+  console.log(`プレイヤー名変更: インデックス${index} -> ${newName}`);
+  
+  // 全てのハンディキャップをクリア
+  const cnt = D.cfg.cnt;
+  for(let i=0;i<cnt;i++){
+    for(let j=i+1;j<cnt;j++){
+      const dataKey = `p${i+1}_p${j+1}`;
+      D.handicaps[dataKey] = 0;
+    }
+  }
+  console.log('ハンディキャップをクリア:', D.handicaps);
+  
   // ハンディキャップを再計算
   D.handicapLoaded = false;
   syncHandicapNames();
   
-  console.log(`プレイヤー名変更: ${index} -> ${newName}`);
   console.log('ハンディキャップ再計算完了:', D.handicaps);
 }
 
