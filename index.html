@@ -89,6 +89,15 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;appearance:non
 input[type="range"]::-webkit-slider-thumb:active{transform:scale(1.2)}
 input[type="range"]::-moz-range-thumb{width:32px;height:32px;background:white;border:3px solid #3b82f6;border-radius:50%;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.2);transition:transform 0.1s}
 input[type="range"]::-moz-range-thumb:active{transform:scale(1.2)}
+/* DB接続状態の視覚表現 */
+.disconnected-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(100,116,139,0.3);pointer-events:none;z-index:9997;transition:opacity 0.3s}
+.disconnected-banner{position:fixed;top:0;left:0;right:0;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;padding:12px 16px;text-align:center;font-weight:600;font-size:14px;z-index:9999;box-shadow:0 2px 8px rgba(0,0,0,0.2);animation:slideDownBanner 0.3s ease-out}
+@keyframes slideDownBanner{from{transform:translateY(-100%)}to{transform:translateY(0)}}
+.connection-indicator{position:fixed;top:12px;right:12px;display:flex;align-items:center;gap:8px;background:white;padding:8px 12px;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:10001;font-size:12px;font-weight:600}
+.connection-dot{width:10px;height:10px;border-radius:50%;animation:pulse 2s infinite}
+.connection-dot.connected{background:#22c55e}
+.connection-dot.disconnected{background:#ef4444}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
 </style>
 </head>
 <body>
@@ -173,7 +182,7 @@ function initFirebase() {
 // Firebase初期化を開始
 initFirebase();
 
-let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,isJoinedRound:false,isRoundCreator:false,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:4,silver:3,bronze:2,iron:1,diamond:5,nearpin:5,dracon:5,eagle:10,birdie:5,sand:1,flag:1,threeputt:-1},nikaiNearpin:false,nikaiDracon:false},showPresets:false,showSaveForm:false,showRounds:false,showRoundIdInput:false,showAvatarPicker:false,showFirebaseManager:false,showUserManager:false,showHowToUse:false,avatarPickerIndex:null,alert:null,debugLog:[],firebaseRounds:[],userList:[],adminMode:false,user:null,isAuthenticated:false,isAuthorized:false,showLiveScore:localStorage.getItem('showLiveScore')!=='false',emailForSignIn:'',showEmailLogin:false,pendingUsersCount:0,handicaps:{},handicapHistory:{},hNames:{p1:'Aさん',p2:'Bさん',p3:'Cさん',p4:'Dさん'},hScores:{p1:{out:'',in:'',total:''},p2:{out:'',in:'',total:''},p3:{out:'',in:'',total:''},p4:{out:'',in:'',total:''}},hCourseName:'',handicapLoaded:false,DEBUG_BYPASS_AUTH:false};
+let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,isJoinedRound:false,isRoundCreator:false,isRealtimeConnected:false,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:4,silver:3,bronze:2,iron:1,diamond:5,nearpin:5,dracon:5,eagle:10,birdie:5,sand:1,flag:1,threeputt:-1},nikaiNearpin:false,nikaiDracon:false},showPresets:false,showSaveForm:false,showRounds:false,showRoundIdInput:false,showAvatarPicker:false,showFirebaseManager:false,showUserManager:false,showHowToUse:false,avatarPickerIndex:null,alert:null,debugLog:[],firebaseRounds:[],userList:[],adminMode:false,user:null,isAuthenticated:false,isAuthorized:false,showLiveScore:localStorage.getItem('showLiveScore')!=='false',emailForSignIn:'',showEmailLogin:false,pendingUsersCount:0,handicaps:{},handicapHistory:{},hNames:{p1:'Aさん',p2:'Bさん',p3:'Cさん',p4:'Dさん'},hScores:{p1:{out:'',in:'',total:''},p2:{out:'',in:'',total:''},p3:{out:'',in:'',total:''},p4:{out:'',in:'',total:''}},hCourseName:'',handicapLoaded:false,DEBUG_BYPASS_AUTH:false};
 // ラウンドキャッシュ
 let roundCache = {};
 // デバッグログ関数
@@ -343,6 +352,8 @@ function startRealtimeSync(){
   }
   if(!D.rid || !window.firebaseReady || !window.fbDB){
     console.log('❌ リアルタイム同期スキップ - Firebase未初期化またはridなし');
+    D.isRealtimeConnected = false;
+    render();
     return;
   }
   
@@ -355,6 +366,9 @@ function startRealtimeSync(){
   
   realtimeListener = window.fbDB._onValue(dbRef, (snapshot)=>{
     console.log('🔔 Firebaseリスナーコールバック実行');
+    
+    // 接続成功
+    D.isRealtimeConnected = true;
     
     if(!snapshot || !snapshot.val){
       console.warn('⚠️ Snapshotが無効です');
@@ -378,6 +392,7 @@ function startRealtimeSync(){
         D.dch=data.dch||{};
         D.hScores=data.strokeScores||D.hScores||{};
         D.handicaps=data.handicaps||D.handicaps||{};
+        render();
         return;
       }
       
@@ -443,9 +458,12 @@ function startRealtimeSync(){
     }
   }, (error) => {
     console.error('❌ Firebaseリスナーエラー:', error);
+    D.isRealtimeConnected = false;
+    render();
   });
   
   console.log('✅ Firebaseリスナー登録完了');
+  render();
 }
 
 // 更新通知を表示する関数
@@ -494,7 +512,7 @@ function showUpdateNotification(message){
     }, 300);
   }, 3000);
 }
-function stopRealtimeSync(){if(realtimeListener && typeof realtimeListener === 'function'){realtimeListener();realtimeListener=null}}
+function stopRealtimeSync(){if(realtimeListener && typeof realtimeListener === 'function'){realtimeListener();realtimeListener=null;D.isRealtimeConnected=false;render()}}
 async function saveRound(){
   if(!D.rid){console.log('エラー: ridがnull');return}
   
@@ -1646,7 +1664,39 @@ function render(){
     document.getElementById('app').innerHTML = rLogin();
     return;
   }
-  const v={input:rInput,list:rList,settings:rSet,handicap:rHandicap};let h=v[D.view]();if(D.showPresets)h+=rPresets();if(D.showSaveForm)h+=rSaveForm();if(D.showRounds)h+=rRounds();if(D.showRoundIdInput)h+=rRoundIdInput();if(D.showAvatarPicker)h+=rAvatarPicker();if(D.showFirebaseManager)h+=rFirebaseManager();if(D.showUserManager)h+=rUserManager();if(D.showHowToUse)h+=rHowToUse();if(D.alert)h+=`<div class="alert">${D.alert}</div>`;h+=rLiveScoreBar();h+=`<div class="nav"><button class="nav-btn ${D.view==='input'?'active':''}" onclick="D.view='input';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg><span>入力</span></button><button class="nav-btn ${D.view==='list'?'active':''}" onclick="D.view='list';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg><span>一覧</span></button><button class="nav-btn ${D.view==='handicap'?'active':''}" onclick="D.view='handicap';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span>H/C</span></button><button class="nav-btn ${D.view==='settings'?'active':''}" onclick="D.view='settings';if(D.adminMode)loadAllUsers();render()" style="position:relative"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg><span>設定</span>${D.adminMode&&D.pendingUsersCount>0?`<span style="position:absolute;top:4px;right:8px;background:#ef4444;color:white;border-radius:10px;padding:2px 6px;font-size:10px;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,0.2)">${D.pendingUsersCount}</span>`:''}</button></div>`;document.getElementById('app').innerHTML=h}
+  const v={input:rInput,list:rList,settings:rSet,handicap:rHandicap};let h=v[D.view]();if(D.showPresets)h+=rPresets();if(D.showSaveForm)h+=rSaveForm();if(D.showRounds)h+=rRounds();if(D.showRoundIdInput)h+=rRoundIdInput();if(D.showAvatarPicker)h+=rAvatarPicker();if(D.showFirebaseManager)h+=rFirebaseManager();if(D.showUserManager)h+=rUserManager();if(D.showHowToUse)h+=rHowToUse();if(D.alert)h+=`<div class="alert">${D.alert}</div>`;h+=rLiveScoreBar();
+  
+  // 接続状態の表示
+  h+=renderConnectionStatus();
+  
+  h+=`<div class="nav"><button class="nav-btn ${D.view==='input'?'active':''}" onclick="D.view='input';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg><span>入力</span></button><button class="nav-btn ${D.view==='list'?'active':''}" onclick="D.view='list';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg><span>一覧</span></button><button class="nav-btn ${D.view==='handicap'?'active':''}" onclick="D.view='handicap';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span>H/C</span></button><button class="nav-btn ${D.view==='settings'?'active':''}" onclick="D.view='settings';if(D.adminMode)loadAllUsers();render()" style="position:relative"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg><span>設定</span>${D.adminMode&&D.pendingUsersCount>0?`<span style="position:absolute;top:4px;right:8px;background:#ef4444;color:white;border-radius:10px;padding:2px 6px;font-size:10px;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,0.2)">${D.pendingUsersCount}</span>`:''}</button></div>`;document.getElementById('app').innerHTML=h}
+
+function renderConnectionStatus(){
+  const hasActiveRound = D.rid && (D.isRoundCreator || D.isJoinedRound);
+  const isConnected = hasActiveRound && D.isRealtimeConnected;
+  
+  let html = '';
+  
+  // 未接続オーバーレイ（アクティブなラウンドがあるが未接続の場合）
+  if(hasActiveRound && !isConnected){
+    html += '<div class="disconnected-overlay"></div>';
+    html += `<div class="disconnected-banner" onclick="startRealtimeSync()">
+      ⚠️ リアルタイム同期が切断されています - タップして再接続
+    </div>`;
+  }
+  
+  // 接続インジケーター（右上）
+  if(hasActiveRound){
+    const status = isConnected ? 'connected' : 'disconnected';
+    const label = isConnected ? 'リアルタイム同期中' : '未接続';
+    html += `<div class="connection-indicator">
+      <div class="connection-dot ${status}"></div>
+      <span style="color:${isConnected?'#22c55e':'#ef4444'}">${label}</span>
+    </div>`;
+  }
+  
+  return html;
+}
 // 認証関数
 // 認証関数
 async function handleGoogleLogin(){
