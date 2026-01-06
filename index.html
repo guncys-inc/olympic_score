@@ -317,29 +317,46 @@ async function joinRound(){
 }
 let realtimeListener=null;
 function startRealtimeSync(){
+  console.log('=== startRealtimeSync 開始 ===');
+  console.log('D.rid:', D.rid);
+  console.log('window.firebaseReady:', window.firebaseReady);
+  console.log('window.fbDB:', !!window.fbDB);
+  console.log('D.isRoundCreator:', D.isRoundCreator);
+  console.log('D.isJoinedRound:', D.isJoinedRound);
+  
   if(realtimeListener){
     // v9では直接off()は使えないので、unsubscribe関数を呼ぶ
+    console.log('既存のリスナーを停止');
     if(typeof realtimeListener === 'function') realtimeListener();
   }
   if(!D.rid || !window.firebaseReady || !window.fbDB){
-    console.log('リアルタイム同期スキップ - Firebase未初期化またはridなし');
+    console.log('❌ リアルタイム同期スキップ - Firebase未初期化またはridなし');
     return;
   }
+  
   const dbRef = window.fbDB.ref('rounds/'+D.rid);
+  console.log('✅ Firebaseリスナー登録開始:', 'rounds/' + D.rid);
   
   let isFirstLoad = true; // 初回読み込みフラグ
   
   realtimeListener = window.fbDB._onValue(dbRef, (snapshot)=>{
+    console.log('🔔 Firebaseリスナーコールバック実行');
+    
     if(!snapshot || !snapshot.val){
       console.warn('⚠️ Snapshotが無効です');
       return;
     }
     const data=snapshot.val();
     if(data){
-      console.log('リアルタイム更新:',data);
+      console.log('📥 リアルタイム更新受信:', {
+        isFirstLoad,
+        updatedAt: data.updatedAt,
+        courseName: data.cfg?.courseName
+      });
       
       // 初回読み込み時は通知なし
       if(isFirstLoad){
+        console.log('⚪ 初回読み込み - 通知なし');
         isFirstLoad = false;
         D.cfg=data.cfg||D.cfg;
         D.scores=data.scores||{};
@@ -372,42 +389,55 @@ function startRealtimeSync(){
       if(JSON.stringify(D.scores)!==oldScores){
         changed = true;
         changeMsg += '📝 スコア';
+        console.log('変更検知: スコア');
       }
       if(JSON.stringify(D.cfg)!==oldCfg){
         changed = true;
         if(changeMsg) changeMsg += ', ';
         changeMsg += '⚙️ 設定';
+        console.log('変更検知: 設定');
       }
       if(JSON.stringify(D.nph)!==oldNph || JSON.stringify(D.dch)!==oldDch){
         changed = true;
         if(changeMsg) changeMsg += ', ';
         changeMsg += '🎯 特別ホール';
+        console.log('変更検知: 特別ホール');
       }
       if(JSON.stringify(D.hScores)!==oldStrokeScores){
         changed = true;
         if(changeMsg) changeMsg += ', ';
         changeMsg += '⛳ ストロークスコア';
+        console.log('変更検知: ストロークスコア');
       }
       if(JSON.stringify(D.handicaps)!==oldHandicaps){
         changed = true;
         if(changeMsg) changeMsg += ', ';
         changeMsg += '⚖️ ハンディキャップ';
+        console.log('変更検知: ハンディキャップ');
       }
       
       if(changed){
-        console.log('🔄 データ変更検知:', changeMsg);
+        console.log('✅ データ変更検知:', changeMsg);
         
         // 通知を表示
         showUpdateNotification(changeMsg);
         
         render();
+      } else {
+        console.log('⚪ 変更なし');
       }
     }
+  }, (error) => {
+    console.error('❌ Firebaseリスナーエラー:', error);
   });
+  
+  console.log('✅ Firebaseリスナー登録完了');
 }
 
 // 更新通知を表示する関数
 function showUpdateNotification(message){
+  console.log('📢 通知表示:', message);
+  
   const notification = document.createElement('div');
   notification.style.cssText = `
     position: fixed;
@@ -444,7 +474,10 @@ function showUpdateNotification(message){
   setTimeout(() => {
     notification.style.transition = 'opacity 0.3s';
     notification.style.opacity = '0';
-    setTimeout(() => notification.remove(), 300);
+    setTimeout(() => {
+      notification.remove();
+      console.log('📢 通知削除');
+    }, 300);
   }, 3000);
 }
 function stopRealtimeSync(){if(realtimeListener && typeof realtimeListener === 'function'){realtimeListener();realtimeListener=null}}
