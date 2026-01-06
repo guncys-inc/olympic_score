@@ -84,6 +84,11 @@ input,select{padding:12px;border:1px solid #e5e7eb;border-radius:8px;font-size:1
 .overflow-x{overflow-x:auto}
 .pull-indicator{position:fixed;top:0;left:50%;transform:translateX(-50%);padding:8px 16px;background:#16a34a;color:white;border-radius:0 0 8px 8px;font-size:12px;opacity:0;pointer-events:none;transition:opacity 0.3s;z-index:9999}
 .pull-indicator.active{opacity:1}
+/* ハンディキャップスライダーのカスタムスタイル */
+input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:32px;height:32px;background:white;border:3px solid #3b82f6;border-radius:50%;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.2);transition:transform 0.1s}
+input[type="range"]::-webkit-slider-thumb:active{transform:scale(1.2)}
+input[type="range"]::-moz-range-thumb{width:32px;height:32px;background:white;border:3px solid #3b82f6;border-radius:50%;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.2);transition:transform 0.1s}
+input[type="range"]::-moz-range-thumb:active{transform:scale(1.2)}
 </style>
 </head>
 <body>
@@ -1202,9 +1207,29 @@ function renderHandicapSlider(key,name1,name2,value){
       <span id="hval_${key}_left" style="padding:4px 10px;background:white;border-radius:6px;font-weight:600;color:${value<0?'#10b981':'#64748b'}">${value<0?'+'+Math.abs(value):'0'}</span>
       <span id="hval_${key}_right" style="padding:4px 10px;background:white;border-radius:6px;font-weight:600;color:${value>0?'#10b981':'#64748b'}">${value>0?'+'+value:'0'}</span>
     </div>
-    <input type="range" id="hslider_${key}" min="-18" max="18" value="${value}" oninput="updateHandicapDisplay('${key}',this.value,'${name1}','${name2}')" onchange="D.handicaps['${key}']=parseInt(this.value);saveHandicapData()" style="width:100%;height:8px;border-radius:4px;background:linear-gradient(to right,#ef4444 0%,#94a3b8 50%,#10b981 100%);outline:none;-webkit-appearance:none;appearance:none">
-    <div id="hdesc_${key}" style="text-align:center;margin-top:8px;font-size:12px;font-weight:600;color:#64748b">${desc}</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <button onclick="adjustHandicap('${key}','${name1}','${name2}',-1)" ontouchstart="this.style.transform='scale(0.95)'" ontouchend="this.style.transform='scale(1)'" style="width:44px;height:44px;border:none;background:#ef4444;color:white;border-radius:8px;font-size:20px;font-weight:700;cursor:pointer;flex-shrink:0;transition:transform 0.1s">−</button>
+      <input type="range" id="hslider_${key}" min="-18" max="18" value="${value}" oninput="updateHandicapDisplay('${key}',this.value,'${name1}','${name2}')" onchange="D.handicaps['${key}']=parseInt(this.value);saveHandicapData()" ontouchstart="event.stopPropagation()" ontouchmove="event.stopPropagation()" style="flex:1;height:32px;border-radius:8px;background:linear-gradient(to right,#ef4444 0%,#94a3b8 50%,#10b981 100%);outline:none;-webkit-appearance:none;appearance:none;cursor:pointer">
+      <button onclick="adjustHandicap('${key}','${name1}','${name2}',1)" ontouchstart="this.style.transform='scale(0.95)'" ontouchend="this.style.transform='scale(1)'" style="width:44px;height:44px;border:none;background:#10b981;color:white;border-radius:8px;font-size:20px;font-weight:700;cursor:pointer;flex-shrink:0;transition:transform 0.1s">+</button>
+    </div>
+    <div id="hdesc_${key}" style="text-align:center;margin-top:4px;font-size:12px;font-weight:600;color:#64748b">${desc}</div>
   </div>`;
+}
+
+function adjustHandicap(key, name1, name2, delta){
+  const currentValue = D.handicaps[key] || 0;
+  const newValue = Math.max(-18, Math.min(18, currentValue + delta));
+  
+  D.handicaps[key] = newValue;
+  
+  // スライダーとディスプレイを更新
+  const slider = document.getElementById(`hslider_${key}`);
+  if(slider){
+    slider.value = newValue;
+  }
+  
+  updateHandicapDisplay(key, newValue, name1, name2);
+  saveHandicapData();
 }
 
 function renderPlayerScore(id,name,avatar){
