@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>ゴルフオリンピック スコア</title>
 <meta name="description" content="ゴルフオリンピック形式のスコア管理アプリ">
 <meta name="theme-color" content="#16a34a">
@@ -14,7 +14,9 @@
 <link rel="apple-touch-icon" href="icon.svg">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:system-ui,-apple-system,sans-serif;background:linear-gradient(to bottom,#f0fdf4,#dbeafe);min-height:100vh;padding-bottom:120px}
+html{overflow-x:hidden;width:100%;position:relative}
+body{font-family:system-ui,-apple-system,sans-serif;background:linear-gradient(to bottom,#f0fdf4,#dbeafe);min-height:100vh;padding-bottom:120px;overflow-x:hidden;width:100%;position:relative;-webkit-user-select:none;user-select:none;touch-action:pan-y pinch-zoom}
+input,textarea{-webkit-user-select:text;user-select:text;touch-action:auto}
 .container{max-width:1024px;margin:0 auto;padding:16px}
 .card{background:white;border-radius:24px;padding:24px;margin-bottom:24px;box-shadow:0 4px 6px rgba(0,0,0,0.1)}
 h1{font-size:24px;font-weight:bold;text-align:center;margin-bottom:24px}
@@ -1961,6 +1963,81 @@ if(document.readyState==='loading'){
 }else{
   init();
 }
+
+// モバイルタッチ操作の最適化
+(function(){
+  // ダブルタップズーム無効化
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', function(event) {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) {
+      event.preventDefault();
+    }
+    lastTouchEnd = now;
+  }, false);
+  
+  // ピンチズーム無効化（特定要素以外）
+  document.addEventListener('gesturestart', function(e) {
+    e.preventDefault();
+  });
+  
+  document.addEventListener('gesturechange', function(e) {
+    e.preventDefault();
+  });
+  
+  document.addEventListener('gestureend', function(e) {
+    e.preventDefault();
+  });
+  
+  // 横スクロール防止（縦スクロールのみ許可）
+  let startX = 0;
+  let startY = 0;
+  
+  document.addEventListener('touchstart', function(e) {
+    // 入力フィールドは除外
+    if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA'){
+      return;
+    }
+    
+    // スライダーは除外
+    if(e.target.type === 'range'){
+      return;
+    }
+    
+    // スクロール可能な要素内は除外
+    if(e.target.closest('.hole-scroll') || e.target.closest('.modal-content')){
+      return;
+    }
+    
+    startX = e.touches[0].pageX;
+    startY = e.touches[0].pageY;
+  }, {passive: true});
+  
+  document.addEventListener('touchmove', function(e) {
+    // 入力フィールドは除外
+    if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA'){
+      return;
+    }
+    
+    // スライダーは除外
+    if(e.target.type === 'range'){
+      return;
+    }
+    
+    // スクロール可能な要素内は除外
+    if(e.target.closest('.hole-scroll') || e.target.closest('.modal-content')){
+      return;
+    }
+    
+    const diffX = Math.abs(e.touches[0].pageX - startX);
+    const diffY = Math.abs(e.touches[0].pageY - startY);
+    
+    // 横方向の移動が大きい場合は防止
+    if(diffX > diffY){
+      e.preventDefault();
+    }
+  }, {passive: false});
+})();
 </script>
 </body>
 </html>
