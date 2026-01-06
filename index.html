@@ -326,6 +326,9 @@ function startRealtimeSync(){
     return;
   }
   const dbRef = window.fbDB.ref('rounds/'+D.rid);
+  
+  let isFirstLoad = true; // 初回読み込みフラグ
+  
   realtimeListener = window.fbDB._onValue(dbRef, (snapshot)=>{
     if(!snapshot || !snapshot.val){
       console.warn('⚠️ Snapshotが無効です');
@@ -334,8 +337,27 @@ function startRealtimeSync(){
     const data=snapshot.val();
     if(data){
       console.log('リアルタイム更新:',data);
+      
+      // 初回読み込み時は通知なし
+      if(isFirstLoad){
+        isFirstLoad = false;
+        D.cfg=data.cfg||D.cfg;
+        D.scores=data.scores||{};
+        D.nph=data.nph||{};
+        D.dch=data.dch||{};
+        D.hScores=data.strokeScores||D.hScores||{};
+        D.handicaps=data.handicaps||D.handicaps||{};
+        return;
+      }
+      
+      // 変更検知
       const oldScores=JSON.stringify(D.scores);
+      const oldCfg=JSON.stringify(D.cfg);
+      const oldNph=JSON.stringify(D.nph);
+      const oldDch=JSON.stringify(D.dch);
       const oldStrokeScores=JSON.stringify(D.hScores);
+      const oldHandicaps=JSON.stringify(D.handicaps);
+      
       D.cfg=data.cfg||D.cfg;
       D.scores=data.scores||{};
       D.nph=data.nph||{};
@@ -343,12 +365,87 @@ function startRealtimeSync(){
       D.hScores=data.strokeScores||D.hScores||{};
       D.handicaps=data.handicaps||D.handicaps||{};
       
-      if(JSON.stringify(D.scores)!==oldScores || JSON.stringify(D.hScores)!==oldStrokeScores){
-        console.log('スコア変更検知');
+      // 変更があれば通知して再描画
+      let changed = false;
+      let changeMsg = '';
+      
+      if(JSON.stringify(D.scores)!==oldScores){
+        changed = true;
+        changeMsg += '📝 スコア';
+      }
+      if(JSON.stringify(D.cfg)!==oldCfg){
+        changed = true;
+        if(changeMsg) changeMsg += ', ';
+        changeMsg += '⚙️ 設定';
+      }
+      if(JSON.stringify(D.nph)!==oldNph || JSON.stringify(D.dch)!==oldDch){
+        changed = true;
+        if(changeMsg) changeMsg += ', ';
+        changeMsg += '🎯 特別ホール';
+      }
+      if(JSON.stringify(D.hScores)!==oldStrokeScores){
+        changed = true;
+        if(changeMsg) changeMsg += ', ';
+        changeMsg += '⛳ ストロークスコア';
+      }
+      if(JSON.stringify(D.handicaps)!==oldHandicaps){
+        changed = true;
+        if(changeMsg) changeMsg += ', ';
+        changeMsg += '⚖️ ハンディキャップ';
+      }
+      
+      if(changed){
+        console.log('🔄 データ変更検知:', changeMsg);
+        
+        // 通知を表示
+        showUpdateNotification(changeMsg);
+        
         render();
       }
     }
   });
+}
+
+// 更新通知を表示する関数
+function showUpdateNotification(message){
+  const notification = document.createElement('div');
+  notification.style.cssText = `
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 16px 24px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 10000;
+    font-size: 14px;
+    font-weight: 600;
+    animation: slideDown 0.3s ease-out;
+    max-width: 90%;
+    text-align: center;
+  `;
+  notification.innerHTML = `🔄 他のプレイヤーが更新<br>${message}`;
+  
+  // アニメーション追加
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes slideDown {
+      from { transform: translate(-50%, -20px); opacity: 0; }
+      to { transform: translate(-50%, 0); opacity: 1; }
+    }
+  `;
+  document.head.appendChild(style);
+  
+  document.body.appendChild(notification);
+  
+  // 3秒後に自動削除
+  setTimeout(() => {
+    notification.style.transition = 'opacity 0.3s';
+    notification.style.opacity = '0';
+    setTimeout(() => notification.remove(), 300);
+  }, 3000);
 }
 function stopRealtimeSync(){if(realtimeListener && typeof realtimeListener === 'function'){realtimeListener();realtimeListener=null}}
 async function saveRound(){
