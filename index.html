@@ -393,6 +393,12 @@ async function loadRound(id){
   if(loadFromCache(id)){
     D.rid=id;
     localStorage.setItem('last_round_id', id);
+    
+    // グローバルハンディキャップを読み込む
+    if(!D.DEBUG_BYPASS_AUTH && window.firebaseReady){
+      await loadGlobalHandicapsFromFirebase();
+    }
+    
     startRealtimeSync();
     render();
     console.log('キャッシュから読込完了');
@@ -418,6 +424,12 @@ async function loadRound(id){
   
   localStorage.setItem('last_round_id', id);
   console.log('読込完了 rid:',D.rid,'scores:',D.scores,'isJoined:',D.isJoinedRound);
+  
+  // グローバルハンディキャップを読み込む
+  if(!D.DEBUG_BYPASS_AUTH && window.firebaseReady){
+    await loadGlobalHandicapsFromFirebase();
+  }
+  
   startRealtimeSync();
   render();
   alert('✅ ラウンド読込');
@@ -1619,9 +1631,20 @@ function init(){
       if(r.cfg){D.cfg=r.cfg}
       if(r.nph){D.nph=r.nph}
       if(r.dch){D.dch=r.dch}
+      if(r.strokeScores){D.hScores=r.strokeScores}
+      if(r.handicaps){D.handicaps=r.handicaps}
+      
       const list=JSON.parse(localStorage.getItem('rounds_list')||'[]');
       const roundInfo=list.find(x=>x.id===lastRid);
       D.isJoinedRound=roundInfo&&roundInfo.isJoined?true:false;
+      
+      // Firebase初期化後にグローバルハンディキャップを読み込む
+      if(!D.DEBUG_BYPASS_AUTH && window.firebaseReady){
+        loadGlobalHandicapsFromFirebase().then(() => {
+          console.log('✅ init: グローバルハンディキャップ読み込み完了');
+          render();
+        });
+      }
     }
   }
   D.view='settings';
