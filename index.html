@@ -168,7 +168,7 @@ function initFirebase() {
 // Firebase初期化を開始
 initFirebase();
 
-let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,isJoinedRound:false,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:4,silver:3,bronze:2,iron:1,diamond:5,nearpin:5,dracon:5,eagle:10,birdie:5,sand:1,flag:1,threeputt:-1},nikaiNearpin:false,nikaiDracon:false},showPresets:false,showSaveForm:false,showRounds:false,showRoundIdInput:false,showAvatarPicker:false,showFirebaseManager:false,showUserManager:false,showHowToUse:false,avatarPickerIndex:null,alert:null,debugLog:[],firebaseRounds:[],userList:[],adminMode:false,user:null,isAuthenticated:false,isAuthorized:false,showLiveScore:localStorage.getItem('showLiveScore')!=='false',emailForSignIn:'',showEmailLogin:false,pendingUsersCount:0,handicaps:{},handicapHistory:{},hNames:{p1:'Aさん',p2:'Bさん',p3:'Cさん',p4:'Dさん'},hScores:{p1:{out:'',in:'',total:''},p2:{out:'',in:'',total:''},p3:{out:'',in:'',total:''},p4:{out:'',in:'',total:''}},hCourseName:'',handicapLoaded:false,DEBUG_BYPASS_AUTH:false};
+let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,isJoinedRound:false,isRoundCreator:false,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:4,silver:3,bronze:2,iron:1,diamond:5,nearpin:5,dracon:5,eagle:10,birdie:5,sand:1,flag:1,threeputt:-1},nikaiNearpin:false,nikaiDracon:false},showPresets:false,showSaveForm:false,showRounds:false,showRoundIdInput:false,showAvatarPicker:false,showFirebaseManager:false,showUserManager:false,showHowToUse:false,avatarPickerIndex:null,alert:null,debugLog:[],firebaseRounds:[],userList:[],adminMode:false,user:null,isAuthenticated:false,isAuthorized:false,showLiveScore:localStorage.getItem('showLiveScore')!=='false',emailForSignIn:'',showEmailLogin:false,pendingUsersCount:0,handicaps:{},handicapHistory:{},hNames:{p1:'Aさん',p2:'Bさん',p3:'Cさん',p4:'Dさん'},hScores:{p1:{out:'',in:'',total:''},p2:{out:'',in:'',total:''},p3:{out:'',in:'',total:''},p4:{out:'',in:'',total:''}},hCourseName:'',handicapLoaded:false,DEBUG_BYPASS_AUTH:false};
 // ラウンドキャッシュ
 let roundCache = {};
 // デバッグログ関数
@@ -201,10 +201,19 @@ function newRound(){
     alert('⚠️ ラウンド作成権限がありません\n\n閲覧専用モードです。ラウンドを作成するには管理者に承認をリクエストしてください。');
     return;
   }
+  
+  // コンファーム
+  const message = '新しいラウンドを作成しますか？\n\nFirebaseに保存され、他のプレイヤーと共有できます。';
+  if(!confirm(message)){
+    console.log('⚠️ ラウンド作成キャンセル');
+    return;
+  }
+  
   cacheCurrentRound();
   D.rid=generateSecureRoundId();
   D.scores={};
   D.isJoinedRound=false;
+  D.isRoundCreator=true; // 作成者フラグを追加
   
   // ラウンドID履歴に追加
   addToRoundIdHistory(D.rid);
@@ -361,13 +370,19 @@ async function saveRound(){
   console.log('ラウンド保存:',r);
   
   // Firebase Realtime Database に保存
+  // ただし、作成者または参加者としてリアルタイム同期中の場合のみ
   if(window.firebaseReady && window.fbDB){
-    try{
-      const dbRef = window.fbDB.ref('rounds/' + D.rid);
-      await dbRef.set(r);
-      console.log('Firebase保存完了');
-    }catch(err){
-      console.log('Firebase保存エラー:',err);
+    // 作成者または既にFirebaseに存在するラウンド（参加中）の場合のみ保存
+    if(D.isRoundCreator || D.isJoinedRound){
+      try{
+        const dbRef = window.fbDB.ref('rounds/' + D.rid);
+        await dbRef.set(r);
+        console.log('✅ Firebase保存完了 (作成者:', D.isRoundCreator, ', 参加中:', D.isJoinedRound, ')');
+      }catch(err){
+        console.log('❌ Firebase保存エラー:',err);
+      }
+    } else {
+      console.log('⚠️ Firebase保存スキップ: ローカルキャッシュのラウンドは保存しません');
     }
   } else {
     console.log('Firebase未初期化 - LocalStorageのみ保存');
@@ -377,7 +392,14 @@ async function saveRound(){
   localStorage.setItem(D.rid,JSON.stringify(r));
   const list=JSON.parse(localStorage.getItem('rounds_list')||'[]');
   const idx=list.findIndex(x=>x.id===D.rid);
-  const item={id:D.rid,courseName:D.cfg.courseName||'未設定',date:D.cfg.date,updatedAt:r.updatedAt};
+  const item={
+    id:D.rid,
+    courseName:D.cfg.courseName||'未設定',
+    date:D.cfg.date,
+    updatedAt:r.updatedAt,
+    isJoined:D.isJoinedRound,
+    isCreator:D.isRoundCreator
+  };
   if(idx>-1)list[idx]=item;else list.unshift(item);
   localStorage.setItem('rounds_list',JSON.stringify(list));
   console.log('ラウンドリスト:',list);
@@ -393,6 +415,12 @@ async function loadRound(id){
   if(loadFromCache(id)){
     D.rid=id;
     localStorage.setItem('last_round_id', id);
+    
+    // rounds_listからフラグを復元
+    const list=JSON.parse(localStorage.getItem('rounds_list')||'[]');
+    const roundInfo=list.find(x=>x.id===id);
+    D.isJoinedRound=roundInfo&&roundInfo.isJoined?true:false;
+    D.isRoundCreator=roundInfo&&roundInfo.isCreator?true:false;
     
     // グローバルハンディキャップを読み込む
     if(!D.DEBUG_BYPASS_AUTH && window.firebaseReady){
@@ -421,9 +449,10 @@ async function loadRound(id){
   const list=JSON.parse(localStorage.getItem('rounds_list')||'[]');
   const roundInfo=list.find(x=>x.id===id);
   D.isJoinedRound=roundInfo&&roundInfo.isJoined?true:false;
+  D.isRoundCreator=roundInfo&&roundInfo.isCreator?true:false;
   
   localStorage.setItem('last_round_id', id);
-  console.log('読込完了 rid:',D.rid,'scores:',D.scores,'isJoined:',D.isJoinedRound);
+  console.log('読込完了 rid:',D.rid,'scores:',D.scores,'isJoined:',D.isJoinedRound,'isCreator:',D.isRoundCreator);
   
   // グローバルハンディキャップを読み込む
   if(!D.DEBUG_BYPASS_AUTH && window.firebaseReady){
@@ -1661,6 +1690,7 @@ function init(){
       const list=JSON.parse(localStorage.getItem('rounds_list')||'[]');
       const roundInfo=list.find(x=>x.id===lastRid);
       D.isJoinedRound=roundInfo&&roundInfo.isJoined?true:false;
+      D.isRoundCreator=roundInfo&&roundInfo.isCreator?true:false;
       
       // Firebase初期化後にグローバルハンディキャップを読み込む
       if(!D.DEBUG_BYPASS_AUTH && window.firebaseReady){
