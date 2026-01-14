@@ -75,10 +75,7 @@ input,select{padding:12px;border:1px solid #e5e7eb;border-radius:8px;font-size:1
 /* 速報バー */
 .live-score-bar{position:fixed;bottom:90px;left:0;right:0;background:linear-gradient(135deg,#1e40af 0%,#3b82f6 100%);color:white;padding:16px 0;box-shadow:0 -2px 10px rgba(0,0,0,0.2);z-index:9998;animation:slideUp 0.3s ease-out;overflow:hidden}
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
-.live-score-content{display:flex;align-items:center;gap:0;white-space:nowrap;animation:scrollLeft 7.5s linear infinite}
-@keyframes scrollLeft{from{transform:translateX(0)}to{transform:translateX(-10%)}}
-.live-score-content:hover{animation-play-state:paused}
-.live-score-content::-webkit-scrollbar{display:none}
+.live-score-track{display:flex;width:fit-content;will-change:transform}
 .live-rank{display:inline-flex;align-items:center;gap:10px;font-size:17px;padding:12px 16px;background:rgba(255,255,255,0.25);border-radius:12px;flex-shrink:0;margin-right:12px}
 .live-rank-medal{font-size:28px;line-height:1;flex-shrink:0}
 .live-rank-name{font-weight:700;font-size:17px}
@@ -928,11 +925,8 @@ function rLiveScoreBar(){
   const medals=['🥇','🥈','🥉'];
   const rankHtml = rankings.map(p=>`<div class="live-rank"><span class="live-rank-medal">${medals[p.rank-1]||p.rank+'位'}</span><span class="live-rank-name">${p.avatar} ${p.name}</span><span class="live-rank-score">${p.score>0?'+':''}${p.score}pt</span></div>`).join('');
   
-  // 無限ループ用に十分な回数繰り返す（画面幅に応じて調整）
-  const repeatCount = 10; // 十分な数を繰り返して継ぎ目を見えなくする
-  const repeatedContent = Array(repeatCount).fill(rankHtml).join('');
-  
-  return`<div class="live-score-bar"><button class="live-toggle" onclick="toggleLiveScore()">✕</button><div class="live-score-content">${repeatedContent}</div></div>`;
+  // 2回繰り返してシームレスループ（requestAnimationFrameで制御）
+  return`<div class="live-score-bar"><button class="live-toggle" onclick="toggleLiveScore()">✕</button><div class="live-score-track" id="liveScoreTrack">${rankHtml}${rankHtml}</div></div>`;
 }
 function selectAvatar(idx,avatar){D.cfg.avs[idx]=avatar;D.showAvatarPicker=false;D.avatarPickerIndex=null;save();render()}
 function openAvatarPicker(idx){D.showAvatarPicker=true;D.avatarPickerIndex=idx;render()}
@@ -1678,7 +1672,13 @@ function render(){
   // 接続状態の表示
   h+=renderConnectionStatus();
   
-  h+=`<div class="nav"><button class="nav-btn ${D.view==='input'?'active':''}" onclick="D.view='input';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg><span>入力</span></button><button class="nav-btn ${D.view==='list'?'active':''}" onclick="D.view='list';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg><span>一覧</span></button><button class="nav-btn ${D.view==='handicap'?'active':''}" onclick="D.view='handicap';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span>H/C</span></button><button class="nav-btn ${D.view==='settings'?'active':''}" onclick="D.view='settings';if(D.adminMode)loadAllUsers();render()" style="position:relative"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg><span>設定</span>${D.adminMode&&D.pendingUsersCount>0?`<span style="position:absolute;top:4px;right:8px;background:#ef4444;color:white;border-radius:10px;padding:2px 6px;font-size:10px;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,0.2)">${D.pendingUsersCount}</span>`:''}</button></div>`;document.getElementById('app').innerHTML=h}
+  h+=`<div class="nav"><button class="nav-btn ${D.view==='input'?'active':''}" onclick="D.view='input';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg><span>入力</span></button><button class="nav-btn ${D.view==='list'?'active':''}" onclick="D.view='list';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg><span>一覧</span></button><button class="nav-btn ${D.view==='handicap'?'active':''}" onclick="D.view='handicap';render()"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span>H/C</span></button><button class="nav-btn ${D.view==='settings'?'active':''}" onclick="D.view='settings';if(D.adminMode)loadAllUsers();render()" style="position:relative"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg><span>設定</span>${D.adminMode&&D.pendingUsersCount>0?`<span style="position:absolute;top:4px;right:8px;background:#ef4444;color:white;border-radius:10px;padding:2px 6px;font-size:10px;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,0.2)">${D.pendingUsersCount}</span>`:''}</button></div>`;document.getElementById('app').innerHTML=h;
+  
+  // スコア速報バーのアニメーションを開始
+  if(D.showLiveScore && D.rid && D.view!=='list'){
+    setTimeout(startLiveScoreAnimation, 0);
+  }
+}
 
 function renderConnectionStatus(){
   const hasActiveRound = D.rid && (D.isRoundCreator || D.isJoinedRound);
@@ -1964,6 +1964,42 @@ document.addEventListener('touchend',()=>{
   indicator.classList.remove('active');
   indicator.textContent='🔄 引っ張って更新';
 },{ passive:true });
+// スコア速報バーのアニメーション制御
+let liveScoreAnimationId = null;
+let liveScoreStartTime = null;
+const LIVE_SCORE_DURATION = 10000; // 10秒
+
+function animateLiveScore() {
+  const track = document.getElementById('liveScoreTrack');
+  if (!track) {
+    liveScoreAnimationId = requestAnimationFrame(animateLiveScore);
+    return;
+  }
+  
+  const now = Date.now();
+  if (!liveScoreStartTime) liveScoreStartTime = now;
+  
+  const elapsed = now - liveScoreStartTime;
+  const progress = (elapsed % LIVE_SCORE_DURATION) / LIVE_SCORE_DURATION;
+  
+  // トラック幅の半分を移動（2セット構成）
+  const trackWidth = track.scrollWidth / 2;
+  const offset = -trackWidth * progress;
+  
+  track.style.transform = `translateX(${offset}px)`;
+  
+  liveScoreAnimationId = requestAnimationFrame(animateLiveScore);
+}
+
+// アニメーション開始
+function startLiveScoreAnimation() {
+  if (liveScoreAnimationId) {
+    cancelAnimationFrame(liveScoreAnimationId);
+  }
+  liveScoreStartTime = null;
+  liveScoreAnimationId = requestAnimationFrame(animateLiveScore);
+}
+
 // ページ読み込み後に初期化
 if(document.readyState==='loading'){
   document.addEventListener('DOMContentLoaded',init);
