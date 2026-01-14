@@ -73,12 +73,13 @@ input,select{padding:12px;border:1px solid #e5e7eb;border-radius:8px;font-size:1
 .btn-score.green{background:#22c55e;color:white}.btn-score.blue{background:#3b82f6;color:white}.btn-score.white{background:#f3f4f6;color:#1f2937}
 .alert{position:fixed;top:80px;left:50%;transform:translateX(-50%);background:#16a34a;color:white;padding:20px 32px;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,0.3);z-index:200000;font-weight:bold;font-size:18px;max-width:90%;text-align:center}
 /* 速報バー */
-.live-score-bar{position:fixed;bottom:90px;left:0;right:0;background:linear-gradient(135deg,#1e40af 0%,#3b82f6 100%);color:white;padding:16px 12px;box-shadow:0 -2px 10px rgba(0,0,0,0.2);z-index:9998;animation:slideUp 0.3s ease-out}
+.live-score-bar{position:fixed;bottom:90px;left:0;right:0;background:linear-gradient(135deg,#1e40af 0%,#3b82f6 100%);color:white;padding:16px 0;box-shadow:0 -2px 10px rgba(0,0,0,0.2);z-index:9998;animation:slideUp 0.3s ease-out;overflow:hidden}
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
-.live-score-content{display:flex;align-items:center;gap:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap;padding:4px 0}
-.live-score-content::-webkit-scrollbar{height:6px}
-.live-score-content::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.4);border-radius:3px}
-.live-rank{display:inline-flex;align-items:center;gap:10px;font-size:17px;padding:12px 16px;background:rgba(255,255,255,0.25);border-radius:12px;flex-shrink:0}
+.live-score-content{display:flex;align-items:center;gap:12px;white-space:nowrap;animation:scrollLeft 30s linear infinite}
+@keyframes scrollLeft{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.live-score-content:hover{animation-play-state:paused}
+.live-score-content::-webkit-scrollbar{display:none}
+.live-rank{display:inline-flex;align-items:center;gap:10px;font-size:17px;padding:12px 16px;background:rgba(255,255,255,0.25);border-radius:12px;flex-shrink:0;margin-right:12px}
 .live-rank-medal{font-size:28px;line-height:1;flex-shrink:0}
 .live-rank-name{font-weight:700;font-size:17px}
 .live-rank-score{font-weight:bold;margin-left:6px;font-size:18px}
@@ -925,7 +926,9 @@ function rLiveScoreBar(){
   }
   const rankings=getRankings();
   const medals=['🥇','🥈','🥉'];
-  return`<div class="live-score-bar"><button class="live-toggle" onclick="toggleLiveScore()">✕</button><div class="live-score-content">${rankings.map(p=>`<div class="live-rank"><span class="live-rank-medal">${medals[p.rank-1]||p.rank+'位'}</span><span class="live-rank-name">${p.avatar} ${p.name}</span><span class="live-rank-score">${p.score>0?'+':''}${p.score}pt</span></div>`).join('')}</div></div>`;
+  const rankHtml = rankings.map(p=>`<div class="live-rank"><span class="live-rank-medal">${medals[p.rank-1]||p.rank+'位'}</span><span class="live-rank-name">${p.avatar} ${p.name}</span><span class="live-rank-score">${p.score>0?'+':''}${p.score}pt</span></div>`).join('');
+  // コンテンツを2回繰り返してシームレスなループを実現
+  return`<div class="live-score-bar"><button class="live-toggle" onclick="toggleLiveScore()">✕</button><div class="live-score-content">${rankHtml}${rankHtml}</div></div>`;
 }
 function selectAvatar(idx,avatar){D.cfg.avs[idx]=avatar;D.showAvatarPicker=false;D.avatarPickerIndex=null;save();render()}
 function openAvatarPicker(idx){D.showAvatarPicker=true;D.avatarPickerIndex=idx;render()}
@@ -2005,7 +2008,7 @@ if(document.readyState==='loading'){
     }
     
     // スクロール可能な要素内は除外
-    if(e.target.closest('.hole-scroll') || e.target.closest('.modal-content')){
+    if(e.target.closest('.hole-scroll') || e.target.closest('.modal-content') || e.target.closest('.live-score-bar')){
       return;
     }
     
@@ -2025,7 +2028,7 @@ if(document.readyState==='loading'){
     }
     
     // スクロール可能な要素内は除外
-    if(e.target.closest('.hole-scroll') || e.target.closest('.modal-content')){
+    if(e.target.closest('.hole-scroll') || e.target.closest('.modal-content') || e.target.closest('.live-score-bar')){
       return;
     }
     
