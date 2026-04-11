@@ -140,6 +140,14 @@ function initFirebase() {
   firebase.initializeApp(firebaseConfig);
   window.database = firebase.database();
   window.auth = firebase.auth();
+
+  // 認証状態をローカルに永続化（ブラウザを閉じても維持）
+  window.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
+  // 認証キャッシュの定数（復元はD定義後に行う）
+  const AUTH_CACHE_KEY = 'auth_cache';
+  const AUTH_CACHE_HOURS = 6;
+
   window.googleProvider = new firebase.auth.GoogleAuthProvider();
   // アカウント選択を強制（毎回選択画面を表示）
   window.googleProvider.setCustomParameters({
@@ -173,16 +181,34 @@ function initFirebase() {
     if(user){
       D.user = user;
       D.isAuthenticated = true;
+      D.authRestoring = false;
+      // 認証キャッシュを保存（6時間有効）
+      localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify({
+        email: user.email,
+        uid: user.uid,
+        timestamp: Date.now()
+      }));
       console.log('👤 ログイン中:', user.email);
-      
-      // ユーザーが初回ログインの場合、authorized_usersに自動登録
-      await ensureUserRegistered(user);
-      
-      checkUserAuthorization(user);
+
+      try{
+        // ユーザーが初回ログインの場合、authorized_usersに自動登録
+        await ensureUserRegistered(user);
+        await checkUserAuthorization(user);
+      }catch(e){
+        console.error('❌ 認証処理エラー:', e);
+        render();
+      }
     }else{
+      // キャッシュが有効ならすぐにログアウト扱いにしない（Firebase復元待ち）
+      if(D.authRestoring){
+        // Firebase復元に失敗した場合 → キャッシュをクリアしてログアウト
+        console.log('⚠️ 認証キャッシュあるがFirebase復元失敗、ログアウトします');
+        localStorage.removeItem(AUTH_CACHE_KEY);
+      }
       D.user = null;
       D.isAuthenticated = false;
       D.isAuthorized = false;
+      D.authRestoring = false;
       console.log('👤 未ログイン');
       render();
     }
@@ -192,7 +218,16 @@ function initFirebase() {
 // Firebase初期化を開始
 initFirebase();
 
-let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,isJoinedRound:false,isRoundCreator:false,isRealtimeConnected:false,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:4,silver:3,bronze:2,iron:1,diamond:5,nearpin:5,dracon:5,eagle:10,birdie:5,sand:1,flag:1,threeputt:-1},nikaiNearpin:false,nikaiDracon:false},showPresets:false,showSaveForm:false,showRounds:false,showRoundIdInput:false,showAvatarPicker:false,showFirebaseManager:false,showUserManager:false,showHowToUse:false,avatarPickerIndex:null,alert:null,debugLog:[],firebaseRounds:[],userList:[],adminMode:false,user:null,isAuthenticated:false,isAuthorized:false,showLiveScore:localStorage.getItem('showLiveScore')!=='false',emailForSignIn:'',showEmailLogin:false,pendingUsersCount:0,handicaps:{},handicapHistory:{},hNames:{p1:'Aさん',p2:'Bさん',p3:'Cさん',p4:'Dさん'},hScores:{p1:{out:'',in:'',total:''},p2:{out:'',in:'',total:''},p3:{out:'',in:'',total:''},p4:{out:'',in:'',total:''}},hCourseName:'',handicapLoaded:false,DEBUG_BYPASS_AUTH:false};
+let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,isJoinedRound:false,isRoundCreator:false,isRealtimeConnected:false,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:4,silver:3,bronze:2,iron:1,diamond:5,nearpin:5,dracon:5,eagle:10,birdie:5,sand:1,flag:1,threeputt:-1},nikaiNearpin:false,nikaiDracon:false},showPresets:false,showSaveForm:false,showRounds:false,showRoundIdInput:false,showAvatarPicker:false,showFirebaseManager:false,showUserManager:false,showHowToUse:false,avatarPickerIndex:null,alert:null,debugLog:[],firebaseRounds:[],userList:[],adminMode:false,user:null,isAuthenticated:false,isAuthorized:false,showLiveScore:localStorage.getItem('showLiveScore')!=='false',emailForSignIn:'',showEmailLogin:false,pendingUsersCount:0,handicaps:{},handicapHistory:{},hNames:{p1:'Aさん',p2:'Bさん',p3:'Cさん',p4:'Dさん'},hScores:{p1:{out:'',in:'',total:''},p2:{out:'',in:'',total:''},p3:{out:'',in:'',total:''},p4:{out:'',in:'',total:''}},hCourseName:'',handicapLoaded:false,DEBUG_BYPASS_AUTH:false,authRestoring:false};
+// 認証キャッシュの復元（Firebase復元中にログイン画面を出さないため）
+(function(){
+  const cached = JSON.parse(localStorage.getItem('auth_cache') || 'null');
+  if(cached && (Date.now() - cached.timestamp) < 6 * 60 * 60 * 1000){
+    D.isAuthenticated = true;
+    D.authRestoring = true;
+    console.log('🔄 認証キャッシュから復元中...', cached.email);
+  }
+})();
 // ラウンドキャッシュ
 let roundCache = {};
 // デバッグログ関数
@@ -1811,6 +1846,11 @@ function rRoundIdInput(){const history=getRoundIdHistory();return`<div class="mo
 function render(){
   // 認証チェック（デバッグモード時はバイパス）
   if(!D.DEBUG_BYPASS_AUTH && !D.isAuthenticated){
+    // 認証キャッシュから復元中の場合はローディング表示（ログイン画面を出さない）
+    if(D.authRestoring){
+      document.getElementById('app').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:80vh;flex-direction:column"><div style="font-size:24px;margin-bottom:16px">🔄</div><p style="color:#6b7280;font-size:14px">認証を復元中...</p></div>';
+      return;
+    }
     document.getElementById('app').innerHTML = rLogin();
     return;
   }
@@ -1893,12 +1933,13 @@ async function handleLogout(){
   try{
     // Firebase認証からログアウト
     await window.auth.signOut();
-    
+
     D.user = null;
     D.isAuthenticated = false;
     D.isAuthorized = false;
     D.adminMode = false;
     localStorage.removeItem('emailForSignIn');
+    localStorage.removeItem('auth_cache');
     
     // Google認証セッションをクリア（次回ログイン時にアカウント選択画面を表示）
     if(window.gapi && window.gapi.auth2){
@@ -1918,6 +1959,7 @@ async function handleLogout(){
     D.isAuthenticated = false;
     D.isAuthorized = false;
     D.adminMode = false;
+    localStorage.removeItem('auth_cache');
     render();
   }
 }
