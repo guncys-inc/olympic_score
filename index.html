@@ -895,10 +895,9 @@ async function approveUser(uid, email){
   
   try{
     const userRef = window.database.ref(`authorized_users/${uid}`);
-    await userRef.set({
+    await userRef.update({
       email: email,
-      authorized: true,
-      addedAt: Date.now()
+      authorized: true
     });
     console.log('✅ 承認完了:', email);
     alert('✅ 承認しました');
