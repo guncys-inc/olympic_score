@@ -230,7 +230,7 @@ function initFirebase() {
 // Firebase初期化を開始
 initFirebase();
 
-let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,isJoinedRound:false,isRoundCreator:false,isRealtimeConnected:false,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:4,silver:3,bronze:2,iron:1,diamond:5,nearpin:5,dracon:5,eagle:10,birdie:5,sand:1,flag:1,threeputt:-1},scoringMode:'olympic',nikaiNearpin:false,nikaiDracon:false},showPresets:false,showSaveForm:false,showRounds:false,showRoundIdInput:false,showAvatarPicker:false,showFirebaseManager:false,showUserManager:false,showHowToUse:false,avatarPickerIndex:null,alert:null,debugLog:[],firebaseRounds:[],userList:[],adminMode:false,user:null,isAuthenticated:false,isAuthorized:false,showLiveScore:localStorage.getItem('showLiveScore')!=='false',emailForSignIn:'',showEmailLogin:false,pendingUsersCount:0,handicaps:{},handicapHistory:{},hNames:{p1:'Aさん',p2:'Bさん',p3:'Cさん',p4:'Dさん'},hScores:{p1:{out:'',in:'',total:''},p2:{out:'',in:'',total:''},p3:{out:'',in:'',total:''},p4:{out:'',in:'',total:''}},hCourseName:'',handicapLoaded:false,DEBUG_BYPASS_AUTH:false,authRestoring:false,pendingJoinRid:null};
+let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,isJoinedRound:false,isRoundCreator:false,isRealtimeConnected:false,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:4,silver:3,bronze:2,iron:1,diamond:5,nearpin:5,dracon:5,eagle:10,birdie:5,sand:1,flag:1,threeputt:-1},scoringMode:'olympic',nikaiNearpin:false,nikaiDracon:false,holes:null,courseKey:null},courseNines:null,nineResolveInFlight:false,nineResolvedFor:null,nineGen:0,nineStateKey:null,ninePick:[null,null],showPresets:false,showSaveForm:false,showRounds:false,showRoundIdInput:false,showAvatarPicker:false,showFirebaseManager:false,showUserManager:false,showHowToUse:false,avatarPickerIndex:null,alert:null,debugLog:[],firebaseRounds:[],userList:[],adminMode:false,user:null,isAuthenticated:false,isAuthorized:false,showLiveScore:localStorage.getItem('showLiveScore')!=='false',emailForSignIn:'',showEmailLogin:false,pendingUsersCount:0,handicaps:{},handicapHistory:{},hNames:{p1:'Aさん',p2:'Bさん',p3:'Cさん',p4:'Dさん'},hScores:{p1:{out:'',in:'',total:''},p2:{out:'',in:'',total:''},p3:{out:'',in:'',total:''},p4:{out:'',in:'',total:''}},hCourseName:'',handicapLoaded:false,DEBUG_BYPASS_AUTH:false,authRestoring:false,pendingJoinRid:null};
 // 認証キャッシュの復元（Firebase復元中にログイン画面を出さないため）
 (function(){
   const cached = JSON.parse(localStorage.getItem('auth_cache') || 'null');
@@ -335,7 +335,7 @@ async function duplicateRound(){
   D.isRoundCreator = true;
   
   // 設定を復元（日付のみ今日に更新）
-  D.cfg = savedCfg;
+  adoptCfg(savedCfg);
   D.cfg.date = new Date().toISOString().split('T')[0];
   D.nph = savedNph;
   D.dch = savedDch;
@@ -453,11 +453,11 @@ async function joinRoundById(rid){
       log('✅ データ読込成功');
       D.rid=rid;
       D.isJoinedRound=true;
-      D.cfg=data.cfg||D.cfg;
+      adoptCfg(data.cfg);
       D.scores=data.scores||{};
       D.nph=data.nph||{};
       D.dch=data.dch||{};
-      
+
       // ラウンドID履歴に追加
       addToRoundIdHistory(rid);
       
@@ -542,7 +542,7 @@ function startRealtimeSync(){
       if(realtimeListenerFirstLoad){
         console.log('⚪ 初回読み込み - 通知なし');
         realtimeListenerFirstLoad = false;
-        D.cfg=data.cfg||D.cfg;
+        adoptCfg(data.cfg);
         D.scores=data.scores||{};
         D.nph=data.nph||{};
         D.dch=data.dch||{};
@@ -560,7 +560,7 @@ function startRealtimeSync(){
       const oldStrokeScores=JSON.stringify(D.hScores);
       const oldHandicaps=JSON.stringify(D.handicaps);
       
-      D.cfg=data.cfg||D.cfg;
+      adoptCfg(data.cfg);
       D.scores=data.scores||{};
       D.nph=data.nph||{};
       D.dch=data.dch||{};
@@ -765,7 +765,7 @@ async function loadRound(id){
   
   D.rid=id;
   D.scores=r.scores||{};
-  if(r.cfg){D.cfg=r.cfg}
+  adoptCfg(r.cfg);
   if(r.nph){D.nph=r.nph}
   if(r.dch){D.dch=r.dch}
   if(r.strokeScores){D.hScores=r.strokeScores}
@@ -1027,7 +1027,7 @@ function cacheCurrentRound(){
 function loadFromCache(rid){
   if(roundCache[rid]){
     console.log('キャッシュから復元:',rid);
-    D.cfg=JSON.parse(JSON.stringify(roundCache[rid].cfg));
+    adoptCfg(JSON.parse(JSON.stringify(roundCache[rid].cfg)));
     D.scores=JSON.parse(JSON.stringify(roundCache[rid].scores));
     D.nph=JSON.parse(JSON.stringify(roundCache[rid].nph));
     D.dch=JSON.parse(JSON.stringify(roundCache[rid].dch));
@@ -1054,6 +1054,161 @@ function rec(t){
     return;
   }
   const k='h'+D.hole+'_p'+D.player;if(!D.scores[k])D.scores[k]=[];const type=T.find(x=>x.id===t);if(t==='none')D.scores[k]=[];else if(type.g==='rank'){const takenBy=isMedalTaken(D.hole,t,D.player);if(takenBy){alert('❌ '+type.l+'は既に'+D.cfg.names[takenBy-1]+'が獲得しています');return}D.scores[k]=D.scores[k].filter(x=>T.find(y=>y.id===x).g!=='rank');D.scores[k].push(t)}else if(type.g==='special'){D.scores[k]=D.scores[k].filter(x=>T.find(y=>y.id===x).g!=='special');D.scores[k].push(t)}else if(type.g==='score'){D.scores[k]=D.scores[k].filter(x=>T.find(y=>y.id===x).g!=='score');D.scores[k].push(t)}else{const i=D.scores[k].indexOf(t);i>-1?D.scores[k].splice(i,1):D.scores[k].push(t)}save();render()}
+// cfg.holes は「null」か「2ナインの完全な組」だけを許す。
+// Firebase RTDB は配列を {"0":..,"1":..} で保持し null 要素を落とすため、
+// 片側だけの選択は ["A"]（長さ1配列）や {1:"B"}（ただのオブジェクト）で戻ってくる。
+function normHoles(h){
+  if(!h||typeof h!=="object")return null;
+  const a=h[0]||null,b=h[1]||null;
+  if(!a||!b||a===b)return null;
+  return[String(a),String(b)];
+}
+// cfg が外部（Firebase・localStorage・キャッシュ）から入ってくる唯一の入口
+function adoptCfg(cfg){
+  if(cfg)D.cfg=cfg;
+  D.cfg.holes=normHoles(D.cfg.holes);
+  D.ninePick=D.cfg.holes?D.cfg.holes.slice():[null,null];
+}
+// ラウンドかコース名が変わったときだけナイン情報を捨てる（同期のたびに捨てない）
+function nineStateSync(){
+  const key=(D.rid||"")+"\n"+((D.cfg.courseName||"").trim());
+  if(D.nineStateKey===key)return;
+  D.nineStateKey=key;
+  D.courseNines=null;D.nineResolvedFor=null;D.nineGen++;
+}
+// 確定した組と選択中の下書きは必ず一緒に捨てる（片方だけ残すと別コースのナインが混ざる）
+function clearNineSelection(){
+  D.cfg.holes=null;D.ninePick=[null,null];
+}
+function holeNineName(pos,holes){
+  if(!holes||holes.length!==2)return null;
+  return holes[pos<=9?0:1];
+}
+// ボタンや表のセルに出す番号。ナイン名は行の見出しに1度だけ出すので、ここには入れない。
+function holeNo(pos,holes){
+  const name=holeNineName(pos,holes);
+  if(name===null)return String(pos);
+  const front=pos<=9;
+  const upper=String(name).toUpperCase();
+  if(upper==="IN")return String(front?pos+9:pos);
+  if(upper==="OUT")return String(front?pos:pos-9);
+  return String(front?pos:pos-9);
+}
+// ナイン名を伴うフルラベル。見出しや注記など、1度しか出ない場所で使う。
+function holeLabel(pos,holes){
+  const name=holeNineName(pos,holes);
+  if(name===null)return String(pos);
+  return name+" "+holeNo(pos,holes);
+}
+// 2ナインのコースに置く既定の順序。RTDB はキーを辞書順で返すため、素の順序だと
+// OUT/IN のコースが必ず IN 先発（インスタート）になる。アウトスタートを既定にする。
+// それ以外のナイン名（東/西、浅間/白樺 など）はどちらが先かを決められないので触らない。
+function defaultNineOrder(names){
+  if(!names||names.length!==2)return names||[];
+  const up=names.map(n=>String(n).toUpperCase());
+  if(up[0]==="IN"&&up[1]==="OUT")return[names[1],names[0]];
+  return names;
+}
+// ホール行の上に出すナイン名。旧形式のラウンドでは何も出さない。
+function nineHead(idx){
+  if(!D.cfg.holes)return"";
+  return`<div style="font-size:11px;color:#6b7280;margin:0 0 4px">${D.cfg.holes[idx]}</div>`;
+}
+function ninesToPars(nines,holes){
+  if(!nines||!holes||holes.length!==2)return null;
+  const a=nines[holes[0]],b=nines[holes[1]];
+  if(!Array.isArray(a)||!Array.isArray(b)||a.length!==9||b.length!==9)return null;
+  return a.concat(b);
+}
+function parsToNphDch(pars){
+  const nph={},dch={};
+  (pars||[]).forEach((p,i)=>{const h=i+1;if(p===3)nph[h]=true;else if(p>=5)dch[h]=true;});
+  return {nph,dch};
+}
+async function loadCourseNines(courseName){
+  const raw=(courseName||"").trim();
+  if(!raw||!window.database)return null;
+  try{
+    const aliasSnap=await window.database.ref("courseAliases/"+raw).once("value");
+    const key=aliasSnap.val();
+    if(!key)return null;
+    const courseSnap=await window.database.ref("courses/"+key).once("value");
+    const course=courseSnap.val();
+    if(!course||!course.nines)return null;
+    return {key:key,displayName:course.displayName||key,nines:course.nines};
+  }catch(err){
+    console.log("コース情報の取得に失敗:",err);
+    return null;
+  }
+}
+function applyNineSelection(){
+  const pars=ninesToPars(D.courseNines,D.cfg.holes);
+  if(!pars)return false;
+  const r=parsToNphDch(pars);
+  D.nph=r.nph;D.dch=r.dch;
+  return true;
+}
+async function onCourseNameChanged(name){
+  const trimmed=(name||"").trim();
+  // 変更なしの blur で他の端末の選択を消さない
+  if(D.nineResolvedFor===trimmed&&D.cfg.holes)return;
+  // 先に世代を進めて他の取得中リクエストを無効化し、そのあとで自分の世代を控える
+  nineStateSync();
+  const gen=D.nineGen,rid=D.rid;
+  const course=await loadCourseNines(trimmed);
+  // await の間にラウンド・コース名・世代が変わっていたら結果ごと破棄する
+  if(D.nineGen!==gen||D.rid!==rid||(D.cfg.courseName||"").trim()!==trimmed)return;
+  D.courseNines=course?course.nines:null;
+  D.cfg.courseKey=course?course.key:null;
+  clearNineSelection();
+  D.nineResolvedFor=trimmed;
+  const names=defaultNineOrder(course?Object.keys(course.nines):[]);
+  if(names.length===2){D.ninePick=[names[0],names[1]];D.cfg.holes=[names[0],names[1]];applyNineSelection();}
+  save();render();
+}
+function setNine(idx,name){
+  const cur=(D.ninePick||[null,null]).slice(0,2);
+  cur[idx]=name||null;
+  if(cur[0]&&cur[1]&&cur[0]===cur[1])cur[idx===0?1:0]=null;
+  D.ninePick=[cur[0]||null,cur[1]||null];
+  // 片側だけの選択は保存しない（RTDB が欠損配列に化けるため）
+  D.cfg.holes=(D.ninePick[0]&&D.ninePick[1])?[D.ninePick[0],D.ninePick[1]]:null;
+  if(D.cfg.holes)applyNineSelection();
+  save();render();
+}
+async function ensureCourseNinesLoaded(){
+  nineStateSync();
+  const name=(D.cfg.courseName||"").trim();
+  if(!name||D.courseNines||D.nineResolveInFlight||D.nineResolvedFor===name)return;
+  D.nineResolveInFlight=true;
+  const gen=D.nineGen;
+  const course=await loadCourseNines(name);
+  D.nineResolveInFlight=false;
+  if(D.nineGen!==gen){ensureCourseNinesLoaded();return;}
+  D.nineResolvedFor=name;
+  if(course){
+    D.courseNines=course.nines;
+    D.cfg.courseKey=course.key;
+    render();
+  }
+}
+function rNineSelect(){
+  ensureCourseNinesLoaded();
+  if(!D.courseNines)return"";
+  const names=Object.keys(D.courseNines);
+  const cur=D.ninePick||[null,null];
+  const sel=(idx)=>`<select class="input-full" onchange="setNine(${idx},this.value)">`
+    +`<option value="">選択してください</option>`
+    +names.map(n=>`<option value="${n}"${cur[idx]===n?" selected":""}>${n}</option>`).join("")
+    +`</select>`;
+  return`<div class="mb-6"><label class="label">回るナイン（${names.length}ナインのコース）</label>`
+    +`<div style="display:flex;gap:8px;align-items:center">`
+    +`<div style="flex:1"><div style="font-size:11px;color:#6b7280;margin-bottom:4px">前半</div>${sel(0)}</div>`
+    +`<div style="flex:1"><div style="font-size:11px;color:#6b7280;margin-bottom:4px">後半</div>${sel(1)}</div>`
+    +`</div>`
+    +`<p style="font-size:11px;color:#6b7280;margin-top:6px">選ぶとニアピン・ドラコンが自動で入ります。個別に変えたい場合は下のボタンで調整できます。</p>`
+    +`</div>`;
+}
 function raw(h,p){const k='h'+h+'_p'+p;const sc=D.scores[k]||[];let pts=0;sc.forEach(t=>{let baseP=D.cfg.pts[t]||0;pts+=baseP;if(t==='nearpin'&&D.cfg.nikaiNearpin){const isOut=h<=9;const start=isOut?1:10;let carryCount=0;for(let prev=h-1;prev>=start;prev--){if(D.nph[prev]){let prevHas=false;for(let pp=1;pp<=D.cfg.cnt;pp++){if((D.scores['h'+prev+'_p'+pp]||[]).includes('nearpin')){prevHas=true;break}}if(!prevHas)carryCount++;else break}}pts+=carryCount*baseP}if(t==='dracon'&&D.cfg.nikaiDracon){const isOut=h<=9;const start=isOut?1:10;let carryCount=0;for(let prev=h-1;prev>=start;prev--){if(D.dch[prev]){let prevHas=false;for(let pp=1;pp<=D.cfg.cnt;pp++){if((D.scores['h'+prev+'_p'+pp]||[]).includes('dracon')){prevHas=true;break}}if(!prevHas)carryCount++;else break}}pts+=carryCount*baseP}});return pts}
 function calc(h,p){const my=raw(h,p);if(D.cfg.scoringMode==='simple')return my;let tot=0;for(let i=1;i<=D.cfg.cnt;i++)tot+=raw(h,i);return my*D.cfg.cnt-tot}
 function tOut(p){let s=0;for(let h=1;h<=9;h++)s+=calc(h,p);return s}
@@ -1148,11 +1303,11 @@ function rHowToUse(){return`<div class="modal" style="z-index:2000"><div style="
 function rLogin(){return`<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);display:flex;align-items:center;justify-content:center;z-index:9999"><div style="background:white;border-radius:16px;padding:40px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);text-align:center"><div style="font-size:64px;margin-bottom:16px">⛳</div><h1 style="color:#1f2937;margin-bottom:8px;font-size:28px">ゴルフオリンピック</h1><p style="color:#6b7280;margin-bottom:32px;font-size:14px">スコア管理アプリ</p>${!D.isAuthenticated?`<button onclick="handleGoogleLogin()" style="width:100%;background:white;border:2px solid #e5e7eb;border-radius:8px;padding:16px;font-size:16px;font-weight:600;color:#1f2937;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:12px;transition:all 0.2s;margin-bottom:16px" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='none'"><svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg><span>Googleでログイン</span></button><div style="display:flex;align-items:center;gap:12px;margin-bottom:16px"><div style="flex:1;height:1px;background:#e5e7eb"></div><span style="color:#9ca3af;font-size:14px">または</span><div style="flex:1;height:1px;background:#e5e7eb"></div></div>${D.showEmailLogin?`<div style="text-align:left"><label style="display:block;font-size:14px;font-weight:600;color:#374151;margin-bottom:8px">メールアドレス</label><input type="email" placeholder="example@email.com" value="${D.emailForSignIn}" oninput="D.emailForSignIn=this.value" style="width:100%;padding:12px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-bottom:12px" onkeypress="if(event.key==='Enter')handleEmailLogin()"><div style="display:flex;gap:8px"><button onclick="handleEmailLogin()" style="flex:1;background:#3b82f6;color:white;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;cursor:pointer">ログインリンクを送信</button><button onclick="D.showEmailLogin=false;render()" style="background:#f3f4f6;color:#6b7280;border:none;border-radius:8px;padding:12px 16px;font-size:14px;cursor:pointer">✕</button></div></div>`:`<button onclick="D.showEmailLogin=true;render()" style="width:100%;background:#f3f4f6;border:2px solid #e5e7eb;border-radius:8px;padding:16px;font-size:16px;font-weight:600;color:#374151;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px"><span>📧</span><span>メールアドレスでログイン</span></button>`}`:D.isAuthenticated&&!D.isAuthorized?`<div style="background:#fef3c7;border:2px solid #fbbf24;border-radius:8px;padding:20px;margin-bottom:20px"><p style="color:#92400e;margin-bottom:12px;font-weight:600">⚠️ アクセス権限がありません</p><p style="color:#92400e;font-size:14px;margin-bottom:4px">ログイン中: ${D.user.email}</p><p style="color:#78716c;font-size:12px">管理者に承認をリクエストしてください</p></div><button onclick="handleLogout()" style="width:100%;background:#ef4444;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;color:white;cursor:pointer">ログアウト</button>`:''}</div></div>`}
 function savePreset(){D.showSaveForm=true;render()}
 function savePresetSubmit(){const name=D.cfg.courseName||'未設定';const date=D.cfg.date.replace(/-/g,'/');const presetName=name+' '+date;const id='p'+Date.now();localStorage.setItem(id,JSON.stringify({name:presetName,courseName:D.cfg.courseName,nph:D.nph,dch:D.dch,pts:D.cfg.pts}));const list=JSON.parse(localStorage.getItem('plist')||'[]');list.unshift({id,name:presetName});localStorage.setItem('plist',JSON.stringify(list));D.showSaveForm=false;alert('✅ 保存: '+presetName)}
-function loadP(id){const p=JSON.parse(localStorage.getItem(id));if(!p){alert('❌ エラー');return}D.cfg.courseName=p.courseName||'';D.nph=p.nph||{};D.dch=p.dch||{};D.cfg.pts=p.pts||D.cfg.pts;D.showPresets=false;save();alert('✅ 読込: '+p.name)}
+function loadP(id){const p=JSON.parse(localStorage.getItem(id));if(!p){alert('❌ エラー');return}D.cfg.courseName=p.courseName||'';D.courseNines=null;D.nineResolvedFor=null;D.nineGen++;D.nineStateKey=null;clearNineSelection();D.nph=p.nph||{};D.dch=p.dch||{};D.cfg.pts=p.pts||D.cfg.pts;D.showPresets=false;save();alert('✅ 読込: '+p.name)}
 function delP(id){localStorage.removeItem(id);const list=JSON.parse(localStorage.getItem('plist')||'[]');localStorage.setItem('plist',JSON.stringify(list.filter(x=>x.id!==id)));render();alert('✅ 削除')}
-function rInput(){const cur=D.scores['h'+D.hole+'_p'+D.player]||[];let details=[];let totalPts=0;if(cur.length>0){cur.forEach(t=>{const type=T.find(x=>x.id===t);if(!type)return;let baseP=D.cfg.pts[t]||0;let actualP=baseP;let note='';if(t==='nearpin'&&D.cfg.nikaiNearpin){const isOut=D.hole<=9;const start=isOut?1:10;let carryCount=0;let carryHoles=[];for(let prev=D.hole-1;prev>=start;prev--){if(D.nph[prev]){let prevHas=false;for(let pp=1;pp<=D.cfg.cnt;pp++){if((D.scores['h'+prev+'_p'+pp]||[]).includes('nearpin')){prevHas=true;break}}if(!prevHas){carryCount++;carryHoles.push(prev)}else break}}if(carryCount>0){actualP=baseP*(carryCount+1);note=' ('+carryHoles.reverse().join('H,')+'H該当者なし→'+(carryCount+1)+'回分)'}else{actualP=baseP}}else if(t==='dracon'&&D.cfg.nikaiDracon){const isOut=D.hole<=9;const start=isOut?1:10;let carryCount=0;let carryHoles=[];for(let prev=D.hole-1;prev>=start;prev--){if(D.dch[prev]){let prevHas=false;for(let pp=1;pp<=D.cfg.cnt;pp++){if((D.scores['h'+prev+'_p'+pp]||[]).includes('dracon')){prevHas=true;break}}if(!prevHas){carryCount++;carryHoles.push(prev)}else break}}if(carryCount>0){actualP=baseP*(carryCount+1);note=' ('+carryHoles.reverse().join('H,')+'H該当者なし→'+(carryCount+1)+'回分)'}else{actualP=baseP}}details.push({label:type.l,points:actualP,note:note});totalPts+=actualP})}return`<div class="container"><div class="card">${D.rid?`<div style="margin-bottom:16px;padding:12px;background:(D.isJoinedRound?'#dbeafe':'#dcfce7');border-radius:8px;border:1px solid ${D.isJoinedRound?'#3b82f6':'#22c55e'}"><p style="font-size:11px;color:${D.isJoinedRound?'#1e40af':'#15803d'};margin-bottom:4px">${D.isJoinedRound?'🔗':'📝'} ${D.cfg.courseName||'ラウンド'}${D.isJoinedRound?' - 参加中':' - 作成者'}</p><div style="display:flex;gap:8px;align-items:center"><input readonly value="${D.rid}" style="flex:1;padding:8px;font-size:11px;font-family:monospace;background:white;border:1px solid ${D.isJoinedRound?'#93c5fd':'#86efac'};border-radius:6px" onclick="this.select()"><button class="btn-secondary" style="padding:8px 12px;font-size:11px" onclick="navigator.clipboard.writeText('${D.rid}');alert('✅ コピーしました')">📋</button></div></div>`:`<div style="margin-bottom:16px;padding:12px;background:#fef3c7;border-radius:8px;text-align:center"><p style="font-size:12px;color:#92400e">⚠️ ラウンドが選択されていません</p><p style="font-size:11px;color:#92400e;margin-top:4px">設定画面からラウンドを作成または参加してください</p></div>`}<h1>${D.cfg.courseName||'ゴルフオリンピック'}</h1><div class="mb-6"><label class="label">ホール</label><div class="hole-scroll"><div class="hole-row">${[1,2,3,4,5,6,7,8,9].map(h=>`<button class="btn btn-hole ${D.hole===h?'active':''}" onclick="D.hole=${h};renderWithScroll()" style="background:${D.hole===h?'#16a34a':D.nph[h]?'#cffafe':D.dch[h]?'#f3e8ff':'#f3f4f6'};color:${D.hole===h?'white':'inherit'}">${h}${D.nph[h]?'<div class="dot dot-top"></div>':''}${D.dch[h]?'<div class="dot dot-bottom"></div>':''}</button>`).join('')}</div></div><div class="hole-scroll" style="margin-top:8px"><div class="hole-row">${[10,11,12,13,14,15,16,17,18].map(h=>`<button class="btn btn-hole ${D.hole===h?'active':''}" onclick="D.hole=${h};renderWithScroll()" style="background:${D.hole===h?'#16a34a':D.nph[h]?'#cffafe':D.dch[h]?'#f3e8ff':'#f3f4f6'};color:${D.hole===h?'white':'inherit'}">${h}${D.nph[h]?'<div class="dot dot-top"></div>':''}${D.dch[h]?'<div class="dot dot-bottom"></div>':''}</button>`).join('')}</div></div></div><div class="mb-6"><label class="label">プレイヤー</label><div class="grid-2">${[1,2,3,4].slice(0,D.cfg.cnt).map(p=>`<button class="btn btn-player ${D.player===p?'active':''}" onclick="D.player=${p};render()"><span class="avatar">${D.cfg.avs[p-1]}</span><span>${D.cfg.names[p-1]}</span></button>`).join('')}</div></div><div><label class="label">スコア</label><div class="grid-4">${T.map(t=>{const sel=cur.includes(t.id);let pts=D.cfg.pts[t.id]||0;return`<button class="btn btn-score ${t.c} ${sel?'selected':''}" onclick="rec('${t.id}')"><div style="font-size:28px;margin-bottom:4px">${t.icon||''}</div><div style="font-weight:bold;font-size:13px">${t.l}</div><div style="font-size:12px;margin-top:4px">${pts>0?'+':''}${pts}</div></button>`}).join('')}</div></div>${details.length>0?`<div style="margin-top:20px;padding:16px;background:#f0fdf4;border-radius:12px;border:2px solid ${D.darkMode?'#22c55e':'#86efac'}"><h3 style="font-size:16px;font-weight:bold;margin-bottom:12px;color:#15803d">📊 ${D.cfg.names[D.player-1]} - ${D.hole}H 獲得ポイント</h3><div style="display:flex;flex-direction:column;gap:8px">${details.map(d=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:white;border-radius:8px"><span style="font-size:14px">${d.label}${d.note?'<span style="font-size:11px;color:#059669;margin-left:4px">'+d.note+'</span>':''}</span><span style="font-weight:bold;font-size:16px;color:${d.points>0?'#15803d':'#dc2626'}">${d.points>0?'+':''}${d.points}pt</span></div>`).join('')}</div><div style="margin-top:12px;padding:12px;background:#dcfce7;border-radius:8px;text-align:center"><span style="font-size:14px;color:#15803d">合計：</span><span style="font-weight:bold;font-size:20px;color:#15803d">${totalPts>0?'+':''}${totalPts}pt</span></div></div>`:'<div style="margin-top:20px;padding:16px;background:#f3f4f6;border-radius:12px;text-align:center;color:#6b7280"><p style="font-size:14px">スコアを選択してください</p></div>'}</div></div>`}
+function rInput(){const cur=D.scores['h'+D.hole+'_p'+D.player]||[];let details=[];let totalPts=0;if(cur.length>0){cur.forEach(t=>{const type=T.find(x=>x.id===t);if(!type)return;let baseP=D.cfg.pts[t]||0;let actualP=baseP;let note='';if(t==='nearpin'&&D.cfg.nikaiNearpin){const isOut=D.hole<=9;const start=isOut?1:10;let carryCount=0;let carryHoles=[];for(let prev=D.hole-1;prev>=start;prev--){if(D.nph[prev]){let prevHas=false;for(let pp=1;pp<=D.cfg.cnt;pp++){if((D.scores['h'+prev+'_p'+pp]||[]).includes('nearpin')){prevHas=true;break}}if(!prevHas){carryCount++;carryHoles.push(prev)}else break}}if(carryCount>0){actualP=baseP*(carryCount+1);note=' ('+carryHoles.reverse().map(x=>holeLabel(x,D.cfg.holes)+(D.cfg.holes?'':'H')).join(',')+'該当者なし→'+(carryCount+1)+'回分)'}else{actualP=baseP}}else if(t==='dracon'&&D.cfg.nikaiDracon){const isOut=D.hole<=9;const start=isOut?1:10;let carryCount=0;let carryHoles=[];for(let prev=D.hole-1;prev>=start;prev--){if(D.dch[prev]){let prevHas=false;for(let pp=1;pp<=D.cfg.cnt;pp++){if((D.scores['h'+prev+'_p'+pp]||[]).includes('dracon')){prevHas=true;break}}if(!prevHas){carryCount++;carryHoles.push(prev)}else break}}if(carryCount>0){actualP=baseP*(carryCount+1);note=' ('+carryHoles.reverse().map(x=>holeLabel(x,D.cfg.holes)+(D.cfg.holes?'':'H')).join(',')+'該当者なし→'+(carryCount+1)+'回分)'}else{actualP=baseP}}details.push({label:type.l,points:actualP,note:note});totalPts+=actualP})}return`<div class="container"><div class="card">${D.rid?`<div style="margin-bottom:16px;padding:12px;background:(D.isJoinedRound?'#dbeafe':'#dcfce7');border-radius:8px;border:1px solid ${D.isJoinedRound?'#3b82f6':'#22c55e'}"><p style="font-size:11px;color:${D.isJoinedRound?'#1e40af':'#15803d'};margin-bottom:4px">${D.isJoinedRound?'🔗':'📝'} ${D.cfg.courseName||'ラウンド'}${D.isJoinedRound?' - 参加中':' - 作成者'}</p><div style="display:flex;gap:8px;align-items:center"><input readonly value="${D.rid}" style="flex:1;padding:8px;font-size:11px;font-family:monospace;background:white;border:1px solid ${D.isJoinedRound?'#93c5fd':'#86efac'};border-radius:6px" onclick="this.select()"><button class="btn-secondary" style="padding:8px 12px;font-size:11px" onclick="navigator.clipboard.writeText('${D.rid}');alert('✅ コピーしました')">📋</button></div></div>`:`<div style="margin-bottom:16px;padding:12px;background:#fef3c7;border-radius:8px;text-align:center"><p style="font-size:12px;color:#92400e">⚠️ ラウンドが選択されていません</p><p style="font-size:11px;color:#92400e;margin-top:4px">設定画面からラウンドを作成または参加してください</p></div>`}<h1>${D.cfg.courseName||'ゴルフオリンピック'}</h1><div class="mb-6"><label class="label">ホール</label>${nineHead(0)}<div class="hole-scroll"><div class="hole-row">${[1,2,3,4,5,6,7,8,9].map(h=>`<button class="btn btn-hole ${D.hole===h?'active':''}" onclick="D.hole=${h};renderWithScroll()" style="background:${D.hole===h?'#16a34a':D.nph[h]?'#cffafe':D.dch[h]?'#f3e8ff':'#f3f4f6'};color:${D.hole===h?'white':'inherit'}">${holeNo(h,D.cfg.holes)}${D.nph[h]?'<div class="dot dot-top"></div>':''}${D.dch[h]?'<div class="dot dot-bottom"></div>':''}</button>`).join('')}</div></div>${nineHead(1)}<div class="hole-scroll" style="margin-top:8px"><div class="hole-row">${[10,11,12,13,14,15,16,17,18].map(h=>`<button class="btn btn-hole ${D.hole===h?'active':''}" onclick="D.hole=${h};renderWithScroll()" style="background:${D.hole===h?'#16a34a':D.nph[h]?'#cffafe':D.dch[h]?'#f3e8ff':'#f3f4f6'};color:${D.hole===h?'white':'inherit'}">${holeNo(h,D.cfg.holes)}${D.nph[h]?'<div class="dot dot-top"></div>':''}${D.dch[h]?'<div class="dot dot-bottom"></div>':''}</button>`).join('')}</div></div></div><div class="mb-6"><label class="label">プレイヤー</label><div class="grid-2">${[1,2,3,4].slice(0,D.cfg.cnt).map(p=>`<button class="btn btn-player ${D.player===p?'active':''}" onclick="D.player=${p};render()"><span class="avatar">${D.cfg.avs[p-1]}</span><span>${D.cfg.names[p-1]}</span></button>`).join('')}</div></div><div><label class="label">スコア</label><div class="grid-4">${T.map(t=>{const sel=cur.includes(t.id);let pts=D.cfg.pts[t.id]||0;return`<button class="btn btn-score ${t.c} ${sel?'selected':''}" onclick="rec('${t.id}')"><div style="font-size:28px;margin-bottom:4px">${t.icon||''}</div><div style="font-weight:bold;font-size:13px">${t.l}</div><div style="font-size:12px;margin-top:4px">${pts>0?'+':''}${pts}</div></button>`}).join('')}</div></div>${details.length>0?`<div style="margin-top:20px;padding:16px;background:#f0fdf4;border-radius:12px;border:2px solid ${D.darkMode?'#22c55e':'#86efac'}"><h3 style="font-size:16px;font-weight:bold;margin-bottom:12px;color:#15803d">📊 ${D.cfg.names[D.player-1]} - ${holeLabel(D.hole,D.cfg.holes)}${D.cfg.holes?'':'H'} 獲得ポイント</h3><div style="display:flex;flex-direction:column;gap:8px">${details.map(d=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:white;border-radius:8px"><span style="font-size:14px">${d.label}${d.note?'<span style="font-size:11px;color:#059669;margin-left:4px">'+d.note+'</span>':''}</span><span style="font-weight:bold;font-size:16px;color:${d.points>0?'#15803d':'#dc2626'}">${d.points>0?'+':''}${d.points}pt</span></div>`).join('')}</div><div style="margin-top:12px;padding:12px;background:#dcfce7;border-radius:8px;text-align:center"><span style="font-size:14px;color:#15803d">合計：</span><span style="font-weight:bold;font-size:20px;color:#15803d">${totalPts>0?'+':''}${totalPts}pt</span></div></div>`:'<div style="margin-top:20px;padding:16px;background:#f3f4f6;border-radius:12px;text-align:center;color:#6b7280"><p style="font-size:14px">スコアを選択してください</p></div>'}</div></div>`}
 function rList(){
-  return`<div class="container"><div class="card overflow-x"><h2>スコア一覧</h2><table><thead><tr><th>H</th>${[1,2,3,4].slice(0,D.cfg.cnt).map(p=>`<th>${D.cfg.avs[p-1]}<br>${D.cfg.names[p-1]}</th>`).join('')}</tr></thead><tbody>${[1,2,3,4,5,6,7,8,9].map(h=>`<tr class="${D.nph[h]?'bg-cyan-100':D.dch[h]?'bg-purple-100':''}"><td>${h}${D.nph[h]?'<br>🎯':''}${D.dch[h]?'<br>🏌️':''}</td>${[1,2,3,4].slice(0,D.cfg.cnt).map(p=>{
+  return`<div class="container"><div class="card overflow-x"><h2>スコア一覧</h2><table><thead><tr><th>H</th>${[1,2,3,4].slice(0,D.cfg.cnt).map(p=>`<th>${D.cfg.avs[p-1]}<br>${D.cfg.names[p-1]}</th>`).join('')}</tr></thead><tbody>${[1,2,3,4,5,6,7,8,9].map(h=>`<tr class="${D.nph[h]?'bg-cyan-100':D.dch[h]?'bg-purple-100':''}"><td>${holeNo(h,D.cfg.holes)}${D.nph[h]?'<br>🎯':''}${D.dch[h]?'<br>🏌️':''}</td>${[1,2,3,4].slice(0,D.cfg.cnt).map(p=>{
     const pts=calc(h,p);
     const icons=getAwardIcons(h,p);
     return`<td class="clickable score-cell ${pts>0?'bg-green-100':pts<0?'bg-red-100':''}" onclick="D.hole=${h};D.player=${p};D.view='input';renderWithScroll()">
@@ -1164,7 +1319,7 @@ function rList(){
       ${icons.bottomRight?`<span class="award-icon award-bottom-right">${icons.bottomRight}</span>`:''}
       <span class="score-value">${pts>0?'+':''}${pts}</span>
     </td>`
-  }).join('')}</tr>`).join('')}<tr class="bg-yellow-100"><td><b>OUT</b></td>${[1,2,3,4].slice(0,D.cfg.cnt).map(p=>{const t=tOut(p);return`<td><b>${t>0?'+':''}${t}</b></td>`}).join('')}</tr>${[10,11,12,13,14,15,16,17,18].map(h=>`<tr class="${D.nph[h]?'bg-cyan-100':D.dch[h]?'bg-purple-100':''}"><td>${h}${D.nph[h]?'<br>🎯':''}${D.dch[h]?'<br>🏌️':''}</td>${[1,2,3,4].slice(0,D.cfg.cnt).map(p=>{
+  }).join('')}</tr>`).join('')}<tr class="bg-yellow-100"><td><b>${D.cfg.holes?D.cfg.holes[0]:"OUT"}</b></td>${[1,2,3,4].slice(0,D.cfg.cnt).map(p=>{const t=tOut(p);return`<td><b>${t>0?'+':''}${t}</b></td>`}).join('')}</tr>${[10,11,12,13,14,15,16,17,18].map(h=>`<tr class="${D.nph[h]?'bg-cyan-100':D.dch[h]?'bg-purple-100':''}"><td>${holeNo(h,D.cfg.holes)}${D.nph[h]?'<br>🎯':''}${D.dch[h]?'<br>🏌️':''}</td>${[1,2,3,4].slice(0,D.cfg.cnt).map(p=>{
     const pts=calc(h,p);
     const icons=getAwardIcons(h,p);
     return`<td class="clickable score-cell ${pts>0?'bg-green-100':pts<0?'bg-red-100':''}" onclick="D.hole=${h};D.player=${p};D.view='input';renderWithScroll()">
@@ -1176,9 +1331,9 @@ function rList(){
       ${icons.bottomRight?`<span class="award-icon award-bottom-right">${icons.bottomRight}</span>`:''}
       <span class="score-value">${pts>0?'+':''}${pts}</span>
     </td>`
-  }).join('')}</tr>`).join('')}<tr class="bg-yellow-100"><td><b>IN</b></td>${[1,2,3,4].slice(0,D.cfg.cnt).map(p=>{const t=tIn(p);return`<td><b>${t>0?'+':''}${t}</b></td>`}).join('')}</tr><tr class="bg-blue-100"><td><b>TOTAL</b></td>${[1,2,3,4].slice(0,D.cfg.cnt).map(p=>{const t=tAll(p);return`<td><b>${t>0?'+':''}${t}</b></td>`}).join('')}</tr></tbody></table></div></div>`
+  }).join('')}</tr>`).join('')}<tr class="bg-yellow-100"><td><b>${D.cfg.holes?D.cfg.holes[1]:"IN"}</b></td>${[1,2,3,4].slice(0,D.cfg.cnt).map(p=>{const t=tIn(p);return`<td><b>${t>0?'+':''}${t}</b></td>`}).join('')}</tr><tr class="bg-blue-100"><td><b>TOTAL</b></td>${[1,2,3,4].slice(0,D.cfg.cnt).map(p=>{const t=tAll(p);return`<td><b>${t>0?'+':''}${t}</b></td>`}).join('')}</tr></tbody></table></div></div>`
 }
-function rSet(){return`<div class="container"><div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h2 style="margin:0">設定</h2><button onclick="D.showHowToUse=true;render()" style="background:none;border:none;font-size:24px;cursor:pointer;padding:4px;color:#ef4444">❓</button></div>${D.DEBUG_BYPASS_AUTH?`<div style="background:#fef2f2;border:2px solid #ef4444;padding:12px;border-radius:8px;margin-bottom:16px"><p style="font-size:13px;color:#991b1b;font-weight:700;margin-bottom:4px">🔧 デバッグモード</p><p style="font-size:11px;color:#991b1b">Firebase機能は無効です。LocalStorageのみで動作します。</p><button onclick="D.DEBUG_BYPASS_AUTH=false;render()" style="margin-top:8px;background:#ef4444;color:white;border:none;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer">デバッグモードを無効化</button></div>`:''} ${D.user?`<div style="background:#f3f4f6;padding:12px;border-radius:8px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center"><div><p style="font-size:11px;color:#6b7280;margin-bottom:4px">ログイン中</p><p style="font-size:13px;font-weight:600;color:#1f2937">${D.user.email}</p></div><button onclick="handleLogout()" style="background:#ef4444;color:white;border:none;padding:8px 16px;border-radius:6px;font-size:12px;cursor:pointer">ログアウト</button></div>`:''}<div class="mb-6" style="background:#f0fdf4;padding:16px;border-radius:12px"><label class="label" style="margin-bottom:12px;color:inherit">🎮 ラウンド操作</label><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><button class="btn-primary" style="width:100%" onclick="newRound()">🆕 新規作成</button><button class="btn-primary" style="width:100%" onclick="D.showRoundIdInput=true;render()">🔗 参加</button>${D.rid?`<button class="btn-secondary" style="width:100%;grid-column:1/3;background:#10b981;color:white" onclick="duplicateRound()">🔄 同じ設定で新ラウンド</button>`:''}<button class="btn-secondary" style="width:100%;grid-column:1/3" onclick="D.showRounds=true;render()">📂 ラウンド管理</button></div>${D.rid?`<div style="margin-top:12px;padding:12px;background:white;border-radius:8px"><p style="font-size:11px;color:#6b7280;margin-bottom:4px">現在のラウンドID</p><p style="font-size:10px;font-family:monospace;color:#16a34a;word-break:break-all">${D.rid}</p></div>`:''}</div><div class="mb-6"><label class="label">ゴルフ場名</label><input class="input-full" value="${D.cfg.courseName}" oninput="D.cfg.courseName=this.value;save()"></div><div class="mb-6"><label class="label">ラウンド日</label><input type="date" class="input-full" value="${D.cfg.date}" onchange="D.cfg.date=this.value;save();render()"></div><div class="mb-6"><label class="label">人数</label><div class="flex flex-gap">${[2,3,4].map(n=>`<button class="btn btn-count ${D.cfg.cnt===n?'active':''}" onclick="D.cfg.cnt=${n};save();render()">${n}人</button>`).join('')}</div></div><div class="mb-6"><label class="label">プレイヤー名</label><div class="space-y">${[0,1,2,3].slice(0,D.cfg.cnt).map(i=>`<div class="flex flex-gap"><button class="btn" style="font-size:24px;min-width:60px;padding:12px" onclick="openAvatarPicker(${i})">${D.cfg.avs[i]}</button><input class="input-full" value="${D.cfg.names[i]}" onchange="handlePlayerNameChange(${i},this.value)"></div>`).join('')}</div></div><div class="mb-6" style="background:#fef3c7;padding:16px;border-radius:12px"><label class="label" style="margin-bottom:12px;color:inherit">🔁 キャリーオーバー</label><p style="font-size:12px;color:#92400e;margin-bottom:12px">該当者なしの回数分を累積し、次に取った人が全て獲得します（OUT/IN独立）</p><div class="space-y" style="gap:8px"><label style="display:flex;align-items:center;gap:8px;padding:8px;background:white;border-radius:8px;color:inherit"><input type="checkbox" ${D.cfg.nikaiNearpin?'checked':''} onchange="D.cfg.nikaiNearpin=this.checked;save();render()" style="width:20px;height:20px"><span>ニアピン キャリーオーバー</span></label><label style="display:flex;align-items:center;gap:8px;padding:8px;background:white;border-radius:8px;color:inherit"><input type="checkbox" ${D.cfg.nikaiDracon?'checked':''} onchange="D.cfg.nikaiDracon=this.checked;save();render()" style="width:20px;height:20px"><span>ドラコン キャリーオーバー</span></label></div></div><div class="mb-6" style="background:#cffafe;padding:16px;border-radius:12px"><label class="label" style="margin-bottom:12px;color:inherit">🎯 ニアピンホール</label><div class="hole-scroll"><div class="hole-row">${[1,2,3,4,5,6,7,8,9].map(h=>`<button class="btn btn-hole" onclick="D.nph[${h}]=!D.nph[${h}];if(D.nph[${h}])D.dch[${h}]=false;save();renderWithScroll()" style="background:${D.nph[h]?'#06b6d4':'#f3f4f6'};color:${D.nph[h]?'white':'inherit'}">${h}</button>`).join('')}</div></div><div class="hole-scroll" style="margin-top:8px"><div class="hole-row">${[10,11,12,13,14,15,16,17,18].map(h=>`<button class="btn btn-hole" onclick="D.nph[${h}]=!D.nph[${h}];if(D.nph[${h}])D.dch[${h}]=false;save();renderWithScroll()" style="background:${D.nph[h]?'#06b6d4':'#f3f4f6'};color:${D.nph[h]?'white':'inherit'}">${h}</button>`).join('')}</div></div></div><div class="mb-6" style="background:#f3e8ff;padding:16px;border-radius:12px"><label class="label" style="margin-bottom:12px;color:inherit">🏌️ ドラコンホール</label><div class="hole-scroll"><div class="hole-row">${[1,2,3,4,5,6,7,8,9].map(h=>`<button class="btn btn-hole" onclick="D.dch[${h}]=!D.dch[${h}];if(D.dch[${h}])D.nph[${h}]=false;save();renderWithScroll()" style="background:${D.dch[h]?'#a855f7':'#f3f4f6'};color:${D.dch[h]?'white':'inherit'}">${h}</button>`).join('')}</div></div><div class="hole-scroll" style="margin-top:8px"><div class="hole-row">${[10,11,12,13,14,15,16,17,18].map(h=>`<button class="btn btn-hole" onclick="D.dch[${h}]=!D.dch[${h}];if(D.dch[${h}])D.nph[${h}]=false;save();renderWithScroll()" style="background:${D.dch[h]?'#a855f7':'#f3f4f6'};color:${D.dch[h]?'white':'inherit'}">${h}</button>`).join('')}</div></div></div><div class="mb-6"><label class="label">プリセット</label><div class="flex flex-gap"><button class="btn-primary" onclick="D.showPresets=true;render()">📂 読込</button><button class="btn-secondary" onclick="savePreset()">💾 保存</button></div></div><div class="mb-6" style="background:#e0f2fe;padding:16px;border-radius:12px"><label class="label" style="margin-bottom:12px;color:inherit">🧮 計算方式</label><div class="flex flex-gap"><button class="btn btn-count ${(D.cfg.scoringMode||'olympic')==='olympic'?'active':''}" style="flex:1" onclick="D.cfg.scoringMode='olympic';save();render()">オリンピック方式</button><button class="btn btn-count ${D.cfg.scoringMode==='simple'?'active':''}" style="flex:1" onclick="D.cfg.scoringMode='simple';save();render()">単純合計方式</button></div><p style="font-size:12px;color:#0369a1;margin-top:8px">${D.cfg.scoringMode==='simple'?'設定した点数をそのまま加算します（例: 銀=2ptなら+2）':'自分のpt×人数−全員のpt合計で精算額を表示します（ゼロサム）'}</p></div><div class="bg-gray-50 mb-6"><h2>点数</h2><div class="space-y">${T.filter(t=>t.id!=='none').map(t=>`<div class="flex flex-gap" style="align-items:center"><div class="btn ${t.c}" style="min-width:100px;color:white;font-size:14px">${t.l}</div><input type="number" class="btn" style="width:70px;text-align:center" value="${D.cfg.pts[t.id]}" onchange="D.cfg.pts['${t.id}']=parseInt(this.value)||0;save()"><span>pt</span></div>`).join('')}</div></div><button class="btn-reset" onclick="D.scores={};D.nph={};D.dch={};save();alert('✅ リセット完了')">🗑 スコアリセット</button></div></div>`}
+function rSet(){return`<div class="container"><div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h2 style="margin:0">設定</h2><button onclick="D.showHowToUse=true;render()" style="background:none;border:none;font-size:24px;cursor:pointer;padding:4px;color:#ef4444">❓</button></div>${D.DEBUG_BYPASS_AUTH?`<div style="background:#fef2f2;border:2px solid #ef4444;padding:12px;border-radius:8px;margin-bottom:16px"><p style="font-size:13px;color:#991b1b;font-weight:700;margin-bottom:4px">🔧 デバッグモード</p><p style="font-size:11px;color:#991b1b">Firebase機能は無効です。LocalStorageのみで動作します。</p><button onclick="D.DEBUG_BYPASS_AUTH=false;render()" style="margin-top:8px;background:#ef4444;color:white;border:none;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer">デバッグモードを無効化</button></div>`:''} ${D.user?`<div style="background:#f3f4f6;padding:12px;border-radius:8px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center"><div><p style="font-size:11px;color:#6b7280;margin-bottom:4px">ログイン中</p><p style="font-size:13px;font-weight:600;color:#1f2937">${D.user.email}</p></div><button onclick="handleLogout()" style="background:#ef4444;color:white;border:none;padding:8px 16px;border-radius:6px;font-size:12px;cursor:pointer">ログアウト</button></div>`:''}<div class="mb-6" style="background:#f0fdf4;padding:16px;border-radius:12px"><label class="label" style="margin-bottom:12px;color:inherit">🎮 ラウンド操作</label><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><button class="btn-primary" style="width:100%" onclick="newRound()">🆕 新規作成</button><button class="btn-primary" style="width:100%" onclick="D.showRoundIdInput=true;render()">🔗 参加</button>${D.rid?`<button class="btn-secondary" style="width:100%;grid-column:1/3;background:#10b981;color:white" onclick="duplicateRound()">🔄 同じ設定で新ラウンド</button>`:''}<button class="btn-secondary" style="width:100%;grid-column:1/3" onclick="D.showRounds=true;render()">📂 ラウンド管理</button></div>${D.rid?`<div style="margin-top:12px;padding:12px;background:white;border-radius:8px"><p style="font-size:11px;color:#6b7280;margin-bottom:4px">現在のラウンドID</p><p style="font-size:10px;font-family:monospace;color:#16a34a;word-break:break-all">${D.rid}</p></div>`:''}</div><div class="mb-6"><label class="label">ゴルフ場名</label><input class="input-full" value="${D.cfg.courseName}" oninput="D.cfg.courseName=this.value;save()" onchange="onCourseNameChanged(this.value)"></div>${rNineSelect()}<div class="mb-6"><label class="label">ラウンド日</label><input type="date" class="input-full" value="${D.cfg.date}" onchange="D.cfg.date=this.value;save();render()"></div><div class="mb-6"><label class="label">人数</label><div class="flex flex-gap">${[2,3,4].map(n=>`<button class="btn btn-count ${D.cfg.cnt===n?'active':''}" onclick="D.cfg.cnt=${n};save();render()">${n}人</button>`).join('')}</div></div><div class="mb-6"><label class="label">プレイヤー名</label><div class="space-y">${[0,1,2,3].slice(0,D.cfg.cnt).map(i=>`<div class="flex flex-gap"><button class="btn" style="font-size:24px;min-width:60px;padding:12px" onclick="openAvatarPicker(${i})">${D.cfg.avs[i]}</button><input class="input-full" value="${D.cfg.names[i]}" onchange="handlePlayerNameChange(${i},this.value)"></div>`).join('')}</div></div><div class="mb-6" style="background:#fef3c7;padding:16px;border-radius:12px"><label class="label" style="margin-bottom:12px;color:inherit">🔁 キャリーオーバー</label><p style="font-size:12px;color:#92400e;margin-bottom:12px">該当者なしの回数分を累積し、次に取った人が全て獲得します（OUT/IN独立）</p><div class="space-y" style="gap:8px"><label style="display:flex;align-items:center;gap:8px;padding:8px;background:white;border-radius:8px;color:inherit"><input type="checkbox" ${D.cfg.nikaiNearpin?'checked':''} onchange="D.cfg.nikaiNearpin=this.checked;save();render()" style="width:20px;height:20px"><span>ニアピン キャリーオーバー</span></label><label style="display:flex;align-items:center;gap:8px;padding:8px;background:white;border-radius:8px;color:inherit"><input type="checkbox" ${D.cfg.nikaiDracon?'checked':''} onchange="D.cfg.nikaiDracon=this.checked;save();render()" style="width:20px;height:20px"><span>ドラコン キャリーオーバー</span></label></div></div><div class="mb-6" style="background:#cffafe;padding:16px;border-radius:12px"><label class="label" style="margin-bottom:12px;color:inherit">🎯 ニアピンホール</label>${nineHead(0)}<div class="hole-scroll"><div class="hole-row">${[1,2,3,4,5,6,7,8,9].map(h=>`<button class="btn btn-hole" onclick="D.nph[${h}]=!D.nph[${h}];if(D.nph[${h}])D.dch[${h}]=false;save();renderWithScroll()" style="background:${D.nph[h]?'#06b6d4':'#f3f4f6'};color:${D.nph[h]?'white':'inherit'}">${holeNo(h,D.cfg.holes)}</button>`).join('')}</div></div>${nineHead(1)}<div class="hole-scroll" style="margin-top:8px"><div class="hole-row">${[10,11,12,13,14,15,16,17,18].map(h=>`<button class="btn btn-hole" onclick="D.nph[${h}]=!D.nph[${h}];if(D.nph[${h}])D.dch[${h}]=false;save();renderWithScroll()" style="background:${D.nph[h]?'#06b6d4':'#f3f4f6'};color:${D.nph[h]?'white':'inherit'}">${holeNo(h,D.cfg.holes)}</button>`).join('')}</div></div></div><div class="mb-6" style="background:#f3e8ff;padding:16px;border-radius:12px"><label class="label" style="margin-bottom:12px;color:inherit">🏌️ ドラコンホール</label>${nineHead(0)}<div class="hole-scroll"><div class="hole-row">${[1,2,3,4,5,6,7,8,9].map(h=>`<button class="btn btn-hole" onclick="D.dch[${h}]=!D.dch[${h}];if(D.dch[${h}])D.nph[${h}]=false;save();renderWithScroll()" style="background:${D.dch[h]?'#a855f7':'#f3f4f6'};color:${D.dch[h]?'white':'inherit'}">${holeNo(h,D.cfg.holes)}</button>`).join('')}</div></div>${nineHead(1)}<div class="hole-scroll" style="margin-top:8px"><div class="hole-row">${[10,11,12,13,14,15,16,17,18].map(h=>`<button class="btn btn-hole" onclick="D.dch[${h}]=!D.dch[${h}];if(D.dch[${h}])D.nph[${h}]=false;save();renderWithScroll()" style="background:${D.dch[h]?'#a855f7':'#f3f4f6'};color:${D.dch[h]?'white':'inherit'}">${holeNo(h,D.cfg.holes)}</button>`).join('')}</div></div></div><div class="mb-6"><label class="label">プリセット</label><div class="flex flex-gap"><button class="btn-primary" onclick="D.showPresets=true;render()">📂 読込</button><button class="btn-secondary" onclick="savePreset()">💾 保存</button></div></div><div class="mb-6" style="background:#e0f2fe;padding:16px;border-radius:12px"><label class="label" style="margin-bottom:12px;color:inherit">🧮 計算方式</label><div class="flex flex-gap"><button class="btn btn-count ${(D.cfg.scoringMode||'olympic')==='olympic'?'active':''}" style="flex:1" onclick="D.cfg.scoringMode='olympic';save();render()">オリンピック方式</button><button class="btn btn-count ${D.cfg.scoringMode==='simple'?'active':''}" style="flex:1" onclick="D.cfg.scoringMode='simple';save();render()">単純合計方式</button></div><p style="font-size:12px;color:#0369a1;margin-top:8px">${D.cfg.scoringMode==='simple'?'設定した点数をそのまま加算します（例: 銀=2ptなら+2）':'自分のpt×人数−全員のpt合計で精算額を表示します（ゼロサム）'}</p></div><div class="bg-gray-50 mb-6"><h2>点数</h2><div class="space-y">${T.filter(t=>t.id!=='none').map(t=>`<div class="flex flex-gap" style="align-items:center"><div class="btn ${t.c}" style="min-width:100px;color:white;font-size:14px">${t.l}</div><input type="number" class="btn" style="width:70px;text-align:center" value="${D.cfg.pts[t.id]}" onchange="D.cfg.pts['${t.id}']=parseInt(this.value)||0;save()"><span>pt</span></div>`).join('')}</div></div><button class="btn-reset" onclick="D.scores={};D.nph={};D.dch={};save();alert('✅ リセット完了')">🗑 スコアリセット</button></div></div>`}
 function rPresets(){const list=JSON.parse(localStorage.getItem('plist')||'[]');return`<div class="modal" onclick="if(event.target===this){D.showPresets=false;render()}"><div class="modal-content" onclick="event.stopPropagation()"><h2>🏌️ プリセット</h2><div style="max-height:55vh;overflow-y:auto;margin:20px 0">${list.length===0?'<p style="color:#6b7280;padding:40px 20px;text-align:center">データなし</p>':''}${list.map(p=>`<div class="preset-item"><div class="preset-name">${p.name}</div><div class="preset-btns"><button class="btn-load" onclick="event.stopPropagation();loadP('${p.id}')">📥 読込</button><button class="btn-del" onclick="event.stopPropagation();delP('${p.id}')">🗑</button></div></div>`).join('')}</div><button class="btn-secondary" style="width:100%" onclick="D.showPresets=false;render()">✖️ 閉じる</button></div></div>`}
 function rSaveForm(){const name=D.cfg.courseName||'未設定';const date=D.cfg.date.replace(/-/g,'/');const presetName=name+' '+date;return`<div class="modal" onclick="if(event.target===this){D.showSaveForm=false;render()}"><div class="modal-content" onclick="event.stopPropagation()"><h2>💾 プリセット保存</h2><div style="margin:20px 0;padding:20px;background:#f3f4f6;border-radius:12px;text-align:center"><p style="color:#6b7280;margin-bottom:8px;font-size:14px">保存する設定名</p><p style="font-size:18px;font-weight:bold">${presetName}</p></div><div style="display:flex;gap:12px"><button class="btn-secondary" style="flex:1" onclick="D.showSaveForm=false;render()">キャンセル</button><button class="btn-primary" style="flex:1" onclick="savePresetSubmit()">保存</button></div></div></div>`}
 function rRounds(){const list=JSON.parse(localStorage.getItem('rounds_list')||'[]');return`<div class="modal" onclick="if(event.target===this){D.showRounds=false;render()}"><div class="modal-content" onclick="event.stopPropagation()"><h2>📂 ラウンド管理</h2><div style="max-height:55vh;overflow-y:auto;margin:20px 0">${list.length===0?'<p style="color:#6b7280;padding:40px 20px;text-align:center">データなし</p>':''}${list.map(r=>`<div class="preset-item" style="border-left:4px solid ${r.isJoined?'#2563eb':'#22c55e'}"><div class="preset-name" style="color:${r.isJoined?'#2563eb':'inherit'}">${r.isJoined?'🔗 ':'📝 '}${r.courseName} (${r.date})</div><div class="preset-btns"><button class="btn-load" onclick="event.stopPropagation();loadRound('${r.id}');D.showRounds=false">📥 読込</button><button class="btn-del" onclick="event.stopPropagation();deleteRound('${r.id}')">🗑</button></div></div>`).join('')}</div><div style="padding:12px;background:#f0f9ff;border-radius:8px;margin-bottom:16px"><p style="font-size:12px;color:#0369a1"><strong>🔗 青色：</strong>参加したラウンド（他の人が作成）</p><p style="font-size:12px;color:#0369a1;margin-top:4px"><strong>📝 緑色：</strong>自分で作成したラウンド</p></div><div style="display:flex;gap:12px">${D.adminMode?'<button class="btn-secondary" style="flex:1" onclick="D.showFirebaseManager=true;D.showRounds=false;loadFirebaseRounds()">☁️ Firebase管理</button>':''}${D.adminMode?`<button class="btn-secondary" style="flex:1;position:relative" onclick="D.showUserManager=true;D.showRounds=false;loadAllUsers()">👥 ユーザー管理${D.pendingUsersCount>0?`<span style="position:absolute;top:-8px;right:-8px;background:#ef4444;color:white;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,0.2)">${D.pendingUsersCount}</span>`:''}</button>`:''}<button class="btn-secondary" style="flex:1" onclick="D.showRounds=false;render()">✖️ 閉じる</button></div></div></div>`}
@@ -2178,7 +2333,7 @@ function init(){
       log('前回のラウンドを復元: ' + lastRid);
       D.rid=lastRid;
       D.scores=r.scores||{};
-      if(r.cfg){D.cfg=r.cfg}
+      adoptCfg(r.cfg);
       if(r.nph){D.nph=r.nph}
       if(r.dch){D.dch=r.dch}
       if(r.strokeScores){D.hScores=r.strokeScores}
