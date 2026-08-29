@@ -230,7 +230,7 @@ function initFirebase() {
 // Firebase初期化を開始
 initFirebase();
 
-let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,isJoinedRound:false,isRoundCreator:false,isRealtimeConnected:false,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:4,silver:3,bronze:2,iron:1,diamond:5,nearpin:5,dracon:5,eagle:10,birdie:5,sand:1,flag:1,threeputt:-1},scoringMode:'olympic',nikaiNearpin:false,nikaiDracon:false,holes:null,courseKey:null},courseNines:null,nineResolveInFlight:false,nineResolvedFor:null,nineGen:0,nineStateKey:null,ninePick:[null,null],showPresets:false,showSaveForm:false,showRounds:false,showRoundIdInput:false,showAvatarPicker:false,showFirebaseManager:false,showUserManager:false,showHowToUse:false,avatarPickerIndex:null,alert:null,debugLog:[],firebaseRounds:[],userList:[],adminMode:false,user:null,isAuthenticated:false,isAuthorized:false,showLiveScore:localStorage.getItem('showLiveScore')!=='false',emailForSignIn:'',showEmailLogin:false,pendingUsersCount:0,handicaps:{},handicapHistory:{},hNames:{p1:'Aさん',p2:'Bさん',p3:'Cさん',p4:'Dさん'},hScores:{p1:{out:'',in:'',total:''},p2:{out:'',in:'',total:''},p3:{out:'',in:'',total:''},p4:{out:'',in:'',total:''}},hCourseName:'',handicapLoaded:false,DEBUG_BYPASS_AUTH:false,authRestoring:false};
+let D={hole:1,player:1,scores:{},view:'input',nph:{},dch:{},rid:null,isJoinedRound:false,isRoundCreator:false,isRealtimeConnected:false,cfg:{courseName:'',date:new Date().toISOString().split('T')[0],cnt:4,names:['P1','P2','P3','P4'],avs:['👨','👩','👨‍💼','👩‍💼'],pts:{gold:4,silver:3,bronze:2,iron:1,diamond:5,nearpin:5,dracon:5,eagle:10,birdie:5,sand:1,flag:1,threeputt:-1},scoringMode:'olympic',nikaiNearpin:false,nikaiDracon:false,holes:null,courseKey:null},courseNines:null,nineResolveInFlight:false,nineResolvedFor:null,nineGen:0,nineStateKey:null,ninePick:[null,null],showPresets:false,showSaveForm:false,showRounds:false,showRoundIdInput:false,showAvatarPicker:false,showFirebaseManager:false,showUserManager:false,showHowToUse:false,avatarPickerIndex:null,alert:null,debugLog:[],firebaseRounds:[],userList:[],adminMode:false,user:null,isAuthenticated:false,isAuthorized:false,showLiveScore:localStorage.getItem('showLiveScore')!=='false',emailForSignIn:'',showEmailLogin:false,pendingUsersCount:0,handicaps:{},handicapHistory:{},hNames:{p1:'Aさん',p2:'Bさん',p3:'Cさん',p4:'Dさん'},hScores:{p1:{out:'',in:'',total:''},p2:{out:'',in:'',total:''},p3:{out:'',in:'',total:''},p4:{out:'',in:'',total:''}},hCourseName:'',handicapLoaded:false,DEBUG_BYPASS_AUTH:false,authRestoring:false,pendingJoinRid:null};
 // 認証キャッシュの復元（Firebase復元中にログイン画面を出さないため）
 (function(){
   const cached = JSON.parse(localStorage.getItem('auth_cache') || 'null');
@@ -364,6 +364,42 @@ async function joinRound(){
   }
   const rid=document.getElementById('roundIdInput').value.trim();
   if(!rid){alert('❌ ラウンドIDを入力してください');return}
+  return joinRoundById(rid);
+}
+
+const JOIN_PARAM='round';
+// 参加リンク（?round=<ID>）から辿ってきたかを見る。参加はここではまだ行わない —
+// この時点では Firebase も認証も未了なので、認可が通ってから consumePendingJoin() が呼ぶ。
+function readJoinParamFromUrl(){
+  try{
+    return new URLSearchParams(window.location.search).get(JOIN_PARAM)||null;
+  }catch(e){return null}
+}
+// 参加できた後だけ呼ぶ。ラウンドIDを履歴とアドレスバーに残さない。
+function clearJoinParamFromUrl(){
+  try{
+    const u=new URL(window.location.href);
+    if(!u.searchParams.has(JOIN_PARAM))return;
+    u.searchParams.delete(JOIN_PARAM);
+    window.history.replaceState({},document.title,u.pathname+(u.search||'')+u.hash);
+  }catch(e){console.log('URLの整理に失敗:',e)}
+}
+// 認可が通った直後に一度だけ走らせる。失敗しても pendingJoinRid は消す
+// （リンクが無効なまま認証のたびに再試行するのを避ける）。
+async function consumePendingJoin(){
+  const rid=D.pendingJoinRid;
+  if(!rid)return;
+  D.pendingJoinRid=null;
+  log('参加リンクから参加します: '+rid);
+  await joinRoundById(rid);
+}
+// 参加の実体。入力欄からも参加リンク（?round=）からも同じ経路を通す。
+async function joinRoundById(rid){
+  if(D.DEBUG_BYPASS_AUTH){
+    alert('⚠️ デバッグモード中です\n\nFirebase機能（ラウンド作成・参加）は無効です。\nローカルストレージのみで動作します。');
+    return;
+  }
+  if(!rid){alert('❌ ラウンドIDを入力してください');return}
   
   log('参加開始: ' + rid);
   
@@ -437,7 +473,13 @@ async function joinRound(){
       D.showRoundIdInput=false;
       startRealtimeSync();
       log('✅ 参加完了');
-      alert('✅ ラウンドに参加しました\n\nスコアがリアルタイムで同期されます');
+      // 参加リンクを2回踏んだだけで毎回ダイアログが出るのは煩わしい。初回だけ知らせる。
+      if(!exists){
+        alert('✅ ラウンドに参加しました\n\nスコアがリアルタイムで同期されます');
+      }
+      // ラウンドIDは非公開性そのもの。参加できた時点でアドレスバーから消す。
+      // 失敗時は消さない（ログインを挟んで戻ってきたときにIDを失わないため）。
+      clearJoinParamFromUrl();
       render();
     }else{
       log('❌ ラウンド未発見: ' + rid);
@@ -2223,6 +2265,8 @@ async function checkUserAuthorization(user){
     console.error('承認チェックエラー詳細:', error);
   }
   render();
+  // 参加リンクで来ていれば、認可が通ったこの時点で参加する。
+  await consumePendingJoin();
 }
 function init(){
   // URLパラメータで管理者モードをチェック
@@ -2252,8 +2296,11 @@ function init(){
     }
   }
   
+  // 参加リンクで来た場合はそのラウンドを開く。前回のラウンドの復元より優先する。
+  D.pendingJoinRid = readJoinParamFromUrl();
+
   // 最後に使ったラウンドがあれば復元
-  const lastRid = localStorage.getItem('last_round_id');
+  const lastRid = D.pendingJoinRid ? null : localStorage.getItem('last_round_id');
   if(lastRid){
     const r=JSON.parse(localStorage.getItem(lastRid));
     if(r){
@@ -2282,6 +2329,10 @@ function init(){
   }
   D.view='settings';
   render();
+  // 認証が init() より先に終わっていた場合、checkUserAuthorization は
+  // pendingJoinRid をまだ見ていない。ここでも一度試す（consumePendingJoin は
+  // 先頭で pendingJoinRid を消すので二重には走らない）。
+  if(D.isAuthenticated) consumePendingJoin();
   // Service Worker登録（sw.jsが存在する環境のみ）
   if('serviceWorker' in navigator && !window.location.hostname.includes('claudusercontent')){
     navigator.serviceWorker.register('sw.js').then(()=>console.log('SW registered')).catch(e=>console.log('SW registration skipped (not supported in this environment)'))
