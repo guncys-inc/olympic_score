@@ -1067,11 +1067,18 @@ function normHoles(h){
   if(!a||!b||a===b)return null;
   return[String(a),String(b)];
 }
+// 片側だけのナイン選択は cfg に載らない（上の normHoles を参照）。そのため
+// 同期の折り返しで cfg から作り直すと選択途中の下書きが消え、前半・後半を
+// 揃えられなくなる。下書きは、それがどのラウンドのものかと一緒に覚えておく。
+let ninePickRid=null;
 // cfg が外部（Firebase・localStorage・キャッシュ）から入ってくる唯一の入口
 function adoptCfg(cfg){
+  // 別のラウンドに移ったら下書きは持ち込まない
+  const draft=ninePickRid===(D.rid||null)?(D.ninePick||[null,null]).slice(0,2):[null,null];
   if(cfg)D.cfg=cfg;
   D.cfg.holes=normHoles(D.cfg.holes);
-  D.ninePick=D.cfg.holes?D.cfg.holes.slice():[null,null];
+  if(D.cfg.holes){D.ninePick=D.cfg.holes.slice();ninePickRid=null;}
+  else D.ninePick=[draft[0]||null,draft[1]||null];
 }
 // ラウンドかコース名が変わったときだけナイン情報を捨てる（同期のたびに捨てない）
 function nineStateSync(){
@@ -1082,7 +1089,7 @@ function nineStateSync(){
 }
 // 確定した組と選択中の下書きは必ず一緒に捨てる（片方だけ残すと別コースのナインが混ざる）
 function clearNineSelection(){
-  D.cfg.holes=null;D.ninePick=[null,null];
+  D.cfg.holes=null;D.ninePick=[null,null];ninePickRid=null;
 }
 function holeNineName(pos,holes){
   if(!holes||holes.length!==2)return null;
@@ -1183,6 +1190,8 @@ function setNine(idx,name){
   D.ninePick=[cur[0]||null,cur[1]||null];
   // 片側だけの選択は保存しない（RTDB が欠損配列に化けるため）
   D.cfg.holes=(D.ninePick[0]&&D.ninePick[1])?[D.ninePick[0],D.ninePick[1]]:null;
+  // 片側だけのときは cfg に残らないので、下書きの持ち主を控えておく
+  ninePickRid=D.cfg.holes?null:(D.rid||null);
   if(D.cfg.holes)applyNineSelection();
   save();render();
 }
