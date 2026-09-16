@@ -1172,8 +1172,14 @@ async function onCourseNameChanged(name){
 }
 function setNine(idx,name){
   const cur=(D.ninePick||[null,null]).slice(0,2);
-  cur[idx]=name||null;
-  if(cur[0]&&cur[1]&&cur[0]===cur[1])cur[idx===0?1:0]=null;
+  const other=idx===0?1:0;
+  const picked=name||null;
+  // 反対側で選ばれているナインを選んだら入れ替える。ここで相手側を消すと
+  // 前後を入れ替えるだけの操作が2手かかるうえ、途中で holes が null になり
+  // ニアピン・ドラコンが前の並びのまま取り残される。
+  if(picked&&cur[other]===picked)cur[other]=cur[idx]||null;
+  cur[idx]=picked;
+  if(cur[0]&&cur[1]&&cur[0]===cur[1])cur[other]=null;
   D.ninePick=[cur[0]||null,cur[1]||null];
   // 片側だけの選択は保存しない（RTDB が欠損配列に化けるため）
   D.cfg.holes=(D.ninePick[0]&&D.ninePick[1])?[D.ninePick[0],D.ninePick[1]]:null;
